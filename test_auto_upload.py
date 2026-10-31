@@ -73,6 +73,40 @@ class Tests(unittest.TestCase):
         self.assertEqual([f['name'] for f in app.drive_folders(drive,'parent')],['11','24'])
         self.assertEqual(drive.files.return_value.list.call_args.kwargs['pageToken'],'next')
 
+    def test_one_click_defaults_to_wizard(self):
+        with patch('sys.argv',['auto_upload.py']),patch.object(app,'wizard') as wizard:
+            app.main()
+            wizard.assert_called_once_with(None)
+
+    def test_wizard_first_login_then_drive_sync(self):
+        with tempfile.TemporaryDirectory() as temp:
+            drive,sheets=Mock(),Mock()
+            drive.about.return_value.get.return_value.execute.return_value={'user':{'emailAddress':'user@example.test'}}
+            order=[]
+            with patch.object(app,'STATE',Path(temp)),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login',side_effect=lambda *_:order.append('login')),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'ask',return_value='1'),patch.object(app,'sync_drive',side_effect=lambda *_:order.append('sync')) as sync:
+                app.wizard()
+                self.assertEqual(order,['login','sync'])
+                sync.assert_called_once_with((drive,sheets))
+
+    def test_wizard_reuses_login_then_local_upload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'token.json').write_text('{}')
+            drive,sheets=Mock(),Mock()
+            drive.about.return_value.get.return_value.execute.return_value={'user':{'emailAddress':'user@example.test'}}
+            with patch.object(app,'STATE',root),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'login') as login,patch.object(app,'ask',side_effect=['bad','2']),patch.object(app,'configure_and_upload') as upload:
+                app.wizard()
+                login.assert_not_called()
+                upload.assert_called_once_with((drive,sheets))
+
+    def test_wizard_expired_session_reauthenticates(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'token.json').write_text('{}')
+            drive,sheets=Mock(),Mock()
+            drive.about.return_value.get.return_value.execute.return_value={'user':{}}
+            with patch.object(app,'STATE',root),patch.object(app,'services',side_effect=[ValueError('expired'),(drive,sheets)]),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login') as login,patch.object(app,'ask',return_value='1'),patch.object(app,'sync_drive'):
+                app.wizard()
+                login.assert_called_once_with('oauth.json')
+
     def test_sync_drive_nonconsecutive_numbers_without_upload(self):
         with tempfile.TemporaryDirectory() as temp:
             drive,sheets=Mock(),Mock()

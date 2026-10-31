@@ -70,15 +70,15 @@ def services():
     from googleapiclient.discovery import build
     data = load(STATE / 'token.json')
     if not data:
-        raise ValueError('Belum login. Jalankan Login Google.bat terlebih dahulu.')
+        raise ValueError('Belum login. Buka Auto Upload.bat untuk login dan melanjutkan.')
     creds = Credentials.from_authorized_user_info(data, SCOPES)
     if not creds.valid:
         if not creds.refresh_token:
-            raise ValueError('Sesi habis. Jalankan Login Google.bat lagi.')
+            raise ValueError('Sesi habis. Buka Auto Upload.bat untuk login lagi.')
         try:
             creds.refresh(Request())
         except Exception:
-            raise ValueError('Sesi Google tidak dapat diperbarui. Jalankan Login Google.bat lagi.') from None
+            raise ValueError('Sesi Google tidak dapat diperbarui. Buka Auto Upload.bat untuk login lagi.') from None
         save(STATE / 'token.json', json.loads(creds.to_json()))
     return (build('drive', 'v3', credentials=creds, cache_discovery=False),
             build('sheets', 'v4', credentials=creds, cache_discovery=False))
@@ -184,9 +184,14 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account):
     print('Link berhasil ditulis:', destination)
 
 
-def configure_and_upload():
-    drive, sheets = services()
+def step(index, title):
+    print(f'\n=== LANGKAH {index}/6: {title} ===', flush=True)
+
+
+def configure_and_upload(clients=None):
+    drive, sheets = clients or services()
     cfg = load(STATE / 'settings.json', {})
+    step(3, 'Google Sheets dan tab bulanan')
     cfg['sheet'] = ask('Link Google Sheets', cfg.get('sheet', ''))
     sid = extract(cfg['sheet'], 'sheet')
     names = tabs(sheets, sid)
@@ -197,6 +202,7 @@ def configure_and_upload():
         raise ValueError('Pilihan tab tidak valid.')
     tab = names[choice-1]
     print('Tab terpilih:', tab)
+    step(4, 'Tujuan Drive dan folder sumber di komputer')
     cfg['drive'] = ask('Link folder Drive tujuan', cfg.get('drive', ''))
     did = extract(cfg['drive'], 'drive')
     cfg['folder'] = ask('Folder INDUK lokal (berisi folder 11, 12, dst.)', cfg.get('folder', ''))
@@ -211,6 +217,7 @@ def configure_and_upload():
         raise ValueError('Akun ini tidak dapat menambah isi folder Drive tujuan.')
     quoted, rows, header, cols = read_sheet(sheets, sid, tab)
     jobs = make_plan(rows, header, cols, folders)
+    step(5, 'Pratinjau pencocokan otomatis')
     print(f'\nTab: {quoted} | PIC: afzal | Kolom otomatis: ' + ', '.join(f'{k}={column(v)}' for k,v in cols.items()))
     for job in jobs:
         print(f'{job["folder"].name} -> baris {job["row"] or "-"}: {job["error"] or "SIAP"}')
@@ -221,6 +228,7 @@ def configure_and_upload():
     if ask('Ketik UPLOAD untuk melanjutkan') != 'UPLOAD':
         print('Dibatalkan tanpa upload.')
         return
+    step(6, 'Upload dan isi link Sheets')
     account = drive.about().get(fields='user.permissionId').execute()['user']['permissionId']
     for job in jobs:
         if job['error']:
@@ -245,9 +253,10 @@ def drive_folders(drive, parent):
             return result
 
 
-def sync_drive():
-    drive, sheets = services()
+def sync_drive(clients=None):
+    drive, sheets = clients or services()
     cfg = load(STATE / 'settings.json', {})
+    step(3, 'Google Sheets dan tab bulanan')
     cfg['sheet'] = ask('Link Google Sheets', cfg.get('sheet', ''))
     sid = extract(cfg['sheet'], 'sheet')
     names = tabs(sheets, sid)
@@ -257,6 +266,8 @@ def sync_drive():
     if not 1 <= choice <= len(names):
         raise ValueError('Pilihan tab tidak valid.')
     tab = names[choice-1]
+    print('Tab terpilih:', tab)
+    step(4, 'Folder sumber di Google Drive')
     cfg['drive'] = ask('Link folder INDUK di Drive yang berisi 11, 13, dst.', cfg.get('drive', ''))
     did = extract(cfg['drive'], 'drive')
     folders = drive_folders(drive, did)
@@ -267,6 +278,7 @@ def sync_drive():
     quoted, rows, header, cols = read_sheet(sheets, sid, tab)
     jobs = make_plan(rows, header, cols, paths)
     by_name = {f['name']: f['id'] for f in folders}
+    step(5, 'Pratinjau pencocokan otomatis')
     print(f'\nTab: {tab} | PIC: afzal | Semua nomor folder dideteksi otomatis')
     for job in jobs:
         print(f'{job["folder"].name} -> baris {job["row"] or "-"}: {job["error"] or "SIAP"}')
@@ -277,6 +289,7 @@ def sync_drive():
     if ask('Ketik ISI untuk menulis link folder ke Sheets') != 'ISI':
         print('Dibatalkan tanpa mengubah Sheets.')
         return
+    step(6, 'Isi link folder ke Sheets')
     # Require the same source set after user confirmation.
     fresh_folders = drive_folders(drive, did)
     if sorted((f['id'], f['name']) for f in fresh_folders) != sorted((f['id'], f['name']) for f in folders):
@@ -295,16 +308,51 @@ def sync_drive():
     print('Selesai. Tidak ada file yang diunggah ulang.')
 
 
+def wizard(oauth=None):
+    print('AUTO UPLOAD — PIC afzal\nLogin -> pilih proses -> Sheets/tab -> folder -> pratinjau -> jalankan')
+    step(1, 'Sambungkan Google')
+    clients = None
+    if (STATE / 'token.json').exists():
+        try:
+            clients = services()
+            print('Sesi Google tersimpan siap digunakan.')
+        except ValueError:
+            print('Sesi tersimpan perlu login ulang.')
+    if clients is None:
+        # Let the user supply a path here instead of closing the wizard when
+        # automatic client discovery cannot choose a single JSON file.
+        try:
+            path = client_file(oauth)
+        except ValueError as exc:
+            print(str(exc))
+            path = client_file(ask('Tempel lokasi lengkap OAuth JSON (boleh seret file ke terminal)'))
+        login(str(path))
+        clients = services()
+    drive, _ = clients
+    user = drive.about().get(fields='user(displayName,emailAddress)').execute().get('user', {})
+    print('Terhubung sebagai:', user.get('emailAddress') or user.get('displayName') or 'akun Google')
+    step(2, 'Pilih proses')
+    print('1. Folder SUDAH ADA di Drive -> isi link ke Sheets\n2. Folder masih di KOMPUTER -> upload ke Drive + isi Sheets')
+    while True:
+        choice = ask('Pilih 1 atau 2', '1')
+        if choice in ('1', '2'):
+            break
+        print('Masukkan 1 atau 2.')
+    if choice == '1':
+        sync_drive(clients)
+    else:
+        configure_and_upload(clients)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Auto Upload — khusus PIC afzal')
-    parser.add_argument('command', nargs='?', choices=['login', 'tabs', 'upload', 'sync', 'logout'])
+    parser.add_argument('command', nargs='?', choices=['wizard', 'login', 'tabs', 'upload', 'sync', 'logout'])
     parser.add_argument('--oauth', help='Lokasi OAuth Desktop JSON untuk login')
     args = parser.parse_args()
-    command = args.command
-    if not command:
-        print('AUTO UPLOAD\n1. Login Google\n2. Muat tab Sheets\n3. Upload folder lokal + isi Sheets\n4. Isi Sheets dari folder di Drive\n5. Hapus login lokal')
-        command = {'1':'login','2':'tabs','3':'upload','4':'sync','5':'logout'}.get(ask('Pilih'))
-    if command == 'login':
+    command = args.command or 'wizard'
+    if command == 'wizard':
+        wizard(args.oauth)
+    elif command == 'login':
         login(args.oauth)
     elif command == 'tabs':
         _, sheets = services()

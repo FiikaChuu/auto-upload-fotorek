@@ -7,18 +7,23 @@ Upload banyak folder ke Drive, lalu isi link di Google Sheets khusus PIC **afzal
 1. Instal Python 3.12 untuk Windows dari python.org, termasuk Python Launcher (`py`).
 2. Ekstrak seluruh ZIP repository ke `D:\Upload_auto`. Hapus peluncur lama `Jalankan Fotorek.bat` dan `Jalankan Desktop.bat` jika masih tertinggal dari ekstraksi sebelumnya.
 3. Taruh OAuth JSON unduhan Google (`client_secret_….json`) di folder aplikasi. **Tidak perlu diganti nama**. Satu OAuth Desktop JSON dalam Downloads juga bisa dideteksi. File OAuth pengguna tidak dimasukkan ke GitHub.
-4. Klik **Login Google.bat**. Instalasi dependency pertama membutuhkan internet. Browser membuka login Google. Setelah izin diberikan, token disimpan lokal agar login tidak diulang setiap pemakaian.
-5. Klik **Muat Tab.bat** untuk membaca daftar tab Sheets. Langkah ini terpisah dari login dan tidak melakukan upload.
-6. Klik **Mulai Upload.bat**. Isi link Sheets, pilih nomor urut TAB bulanan, isi link folder Drive tujuan, pilih path folder INDUK sumber, tanpa mengisi rentang nomor.
-7. Periksa pratinjau, lalu ketik `UPLOAD` untuk melanjutkan. Jawaban lain membatalkan tanpa upload.
+4. Klik **Auto Upload.bat** sekali. Instalasi dependency pertama membutuhkan internet. Semua langkah tampil berurutan di terminal yang sama:
+   - **1/6 Login Google:** jika belum login, browser terbuka. Jika sesi masih aktif, aplikasi memakainya kembali dan menampilkan akun yang tersambung.
+   - **2/6 Pilih proses:** folder sudah di Drive, atau upload dari komputer.
+   - **3/6 Sheets:** masukkan link Sheets, muat daftar tab, pilih tab bulan.
+   - **4/6 Folder:** masukkan link induk Drive; untuk upload lokal, masukkan juga path folder induk komputer.
+   - **5/6 Pratinjau:** periksa pencocokan semua nomor folder otomatis, khusus PIC afzal, tanpa rentang nomor.
+   - **6/6 Jalankan:** ketik `ISI` (folder sudah di Drive) atau `UPLOAD` (folder lokal). Link yang sudah terisi dilewati.
 
-**Auto Upload.bat** menyediakan menu semua langkah. Tidak ada halaman localhost yang harus dibuka. Login memakai callback loopback sementara sesuai alur Google Desktop.
+Tidak perlu membuka file BAT lain. Peluncur lama `Login Google.bat`, `Muat Tab.bat`, `Mulai Upload.bat` dan `Isi Sheets dari Drive.bat` sudah dihapus dari versi ini; hapus manual jika masih tertinggal dari ekstraksi sebelumnya. OAuth JSON dan folder `.auto-upload` Anda tetap dipakai, tidak perlu dihapus.
+
+Tidak ada halaman localhost yang harus dibuka. Login memakai callback loopback sementara sesuai alur Google Desktop.
 
 Contoh: sumber `D:\Bahan` berisi folder `11`, `12 - VLC`, `13`. Nomor folder dicocokkan ke nilai kolom No., bukan nomor baris. Tab dipilih secara eksplisit karena nomor bisa berulang antarbulan. Header No., PIC, Link Drive dideteksi otomatis di 50 baris pertama. PIC selain afzal, nomor ambigu/duplikat dan link yang sudah berisi dilewati. File dan subfolder ikut diunggah; symlink dan subfolder kosong dilewati. Akses berbagi tidak diubah menjadi publik. Link ditulis sebagai URL biasa.
 
 ## Folder sudah ada di Drive?
 
-Klik **Isi Sheets dari Drive.bat**. Masukkan link Sheets, pilih tab bulan, lalu beri link folder INDUK di Drive. Semua subfolder bernomor langsung di dalamnya (contoh 11, 13, 15, 17, 19, 21, 24) dicocokkan otomatis ke No. yang sama khusus PIC afzal. Tidak ada rentang nomor. Pratinjau ditampilkan; ketik `ISI` untuk menulis link. Mode ini tidak mengunggah file lagi dan tidak membutuhkan folder sumber lokal. Folder bulan tetap dipilih sendiri untuk menghindari salah periode. Nomor ganda atau link sudah terisi dilewati.
+Klik **Auto Upload.bat**, lalu pilih **1** pada langkah 2/6. Masukkan link Sheets, pilih tab bulan, lalu beri link folder INDUK di Drive. Semua subfolder bernomor langsung di dalamnya (contoh 11, 13, 15, 17, 19, 21, 24) dicocokkan otomatis ke No. yang sama khusus PIC afzal. Tidak ada rentang nomor. Pratinjau ditampilkan; ketik `ISI` untuk menulis link. Mode ini tidak mengunggah file lagi dan tidak membutuhkan folder sumber lokal. Folder bulan tetap dipilih sendiri untuk menghindari salah periode. Nomor ganda atau link sudah terisi dilewati.
 
 ## OAuth satu kali
 
@@ -29,13 +34,15 @@ cd /d D:\Upload_auto
 "Auto Upload.bat" login --oauth "C:\Users\Nama\Downloads\client_secret_....json"
 ```
 
-Token/refresh token disimpan lokal dalam `.auto-upload\token.json` dan diperbarui otomatis. Jangan membagikan file token, OAuth JSON, atau menyinkronkan folder ini ke penyimpanan publik. Menu logout menghapus token lokal; pencabutan akses dilakukan di pengaturan akun Google. Refresh token aplikasi External Testing bisa kedaluwarsa setelah 7 hari, sehingga perlu login lagi.
+Token/refresh token disimpan lokal dalam `.auto-upload\token.json` dan diperbarui otomatis. Jangan membagikan file token, OAuth JSON, atau menyinkronkan folder ini ke penyimpanan publik. Perintah `python auto_upload.py logout` menghapus token lokal; pencabutan akses dilakukan di pengaturan akun Google. Refresh token aplikasi External Testing bisa kedaluwarsa setelah 7 hari, sehingga perlu login lagi.
 
 ## Pengembangan
 
 Python >=3.10. Buat virtual environment, lalu `python -m pip install -r requirements.txt`.
 
 ```sh
+python auto_upload.py
+# Perintah langsung untuk pengembangan:
 python auto_upload.py login
 python auto_upload.py tabs
 python auto_upload.py upload
