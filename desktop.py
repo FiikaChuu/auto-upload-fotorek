@@ -3,10 +3,12 @@ import contextlib
 import io
 import queue
 import threading
+import webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import auto_upload as core
 import upload_flow as flow
+from google_errors import http_message
 
 
 class Writer:
@@ -22,7 +24,7 @@ class Writer:
 def error_message(exc):
     from googleapiclient.errors import HttpError
     if isinstance(exc, HttpError):
-        return {401:'Sesi Google habis. Klik Sambungkan Google lagi.', 403:'Akses ditolak. Pastikan Drive API dan Sheets API aktif, akun terdaftar sebagai test user, dan punya izin edit.', 404:'Folder atau Sheets tidak ditemukan. Periksa tautan dan akun yang digunakan.'}.get(exc.resp.status, f'Google API gagal (HTTP {exc.resp.status}). Coba lagi nanti.')
+        return http_message(exc)
     if isinstance(exc, (ValueError, FileNotFoundError)):
         return str(exc)
     return f'{type(exc).__name__}: proses belum berhasil. Periksa koneksi dan sambungkan Google kembali.'
@@ -63,6 +65,7 @@ class App:
         self.button(auth, 'Pilih OAuth JSON…', self.pick_oauth).pack(side='left', padx=(0,8))
         self.account = ttk.Label(auth, text='Belum terhubung')
         self.account.pack(side='left', padx=6)
+        self.button(auth, 'Pengaturan API', self.api_settings).pack(side='right')
         source = ttk.LabelFrame(outer, text='2. Pilih folder hasil edit', padding=10)
         source.pack(fill='x', pady=10)
         ttk.Label(source, text='Pilih folder 11 langsung, atau induk berisi banyak folder seperti 11, 13, 15.').pack(anchor='w')
@@ -138,7 +141,7 @@ class App:
                     result = task()
                 self.events.put(('success', (success, result)))
             except Exception as exc:
-                self.events.put(('error', error_message(exc)))
+                self.events.put(('error', 'Saat: ' + status + '\n\n' + error_message(exc)))
             finally:
                 self.events.put(('done', None))
         threading.Thread(target=run, daemon=True).start()
@@ -158,6 +161,7 @@ class App:
             elif kind == 'error':
                 self.invalidate()
                 self.status.set('Proses belum berhasil. ' + value)
+                self.events.put(('log', '\n' + value + '\n'))
                 messagebox.showerror('Auto Upload',value,parent=self.root)
             elif kind == 'done':
                 self.set_busy(False)
@@ -204,6 +208,26 @@ class App:
                 self.status.set('OAuth JSON dipilih. Klik Sambungkan Google.')
             except ValueError:
                 messagebox.showerror('OAuth JSON','File harus berupa OAuth client Desktop app dari Google Cloud.',parent=self.root)
+
+    def api_settings(self):
+        from urllib.parse import urlencode
+        import re
+        project = None
+        try:
+            data=core.load(core.client_file(self.oauth))
+            candidate=data.get('installed',{}).get('project_id','')
+            if isinstance(candidate,str) and re.fullmatch('[a-z][a-z0-9-]{4,62}',candidate):
+                project=candidate
+        except (ValueError,OSError):
+            pass
+        suffix='?'+urlencode({'project':project}) if project else ''
+        dialog=tk.Toplevel(self.root); dialog.title('Aktifkan API Google'); dialog.transient(self.root)
+        frame=ttk.Frame(dialog,padding=18);frame.pack(fill='both',expand=True)
+        info='Proyek dari OAuth JSON: '+project if project else 'Pilih proyek Google Cloud yang sama dengan file OAuth JSON Anda.'
+        ttk.Label(frame,text=info,wraplength=520).pack(anchor='w')
+        ttk.Label(frame,text='Buka kedua halaman berikut. Jika ada tombol Enable/Aktifkan, klik tombol tersebut.\nJika tertulis Manage/Kelola, API sudah aktif. Tunggu beberapa menit lalu coba lagi.',wraplength=520).pack(anchor='w',pady=10)
+        ttk.Button(frame,text='1. Buka Google Drive API',command=lambda:webbrowser.open('https://console.cloud.google.com/apis/library/drive.googleapis.com'+suffix)).pack(fill='x',pady=3)
+        ttk.Button(frame,text='2. Buka Google Sheets API',command=lambda:webbrowser.open('https://console.cloud.google.com/apis/library/sheets.googleapis.com'+suffix)).pack(fill='x',pady=3)
 
     def add_folder(self):
         path = filedialog.askdirectory(title='Pilih folder hasil edit atau folder induknya',parent=self.root)

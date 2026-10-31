@@ -49,8 +49,12 @@ python auto_upload.py login
 python auto_upload.py tabs
 python auto_upload.py upload
 python auto_upload.py sync
-python -m unittest -v test_auto_upload test_upload_flow
+python -m unittest -v test_auto_upload test_upload_flow test_google_errors
 ```
+
+## Bila Muat tab ditolak (HTTP 403)
+
+Login dapat berhasil meskipun Google Sheets API belum aktif. Klik **Pengaturan API** di aplikasi: proyek dibaca dari OAuth JSON, lalu buka Google Sheets API dan klik Enable/Aktifkan bila tersedia. Tunggu beberapa menit, kemudian klik Muat tab lagi. Tidak perlu membuat ulang JSON atau login hanya karena API baru diaktifkan. Jika API sudah aktif, periksa akun yang tertera dapat membuka spreadsheet. Pesan baru membedakan API nonaktif, scope token kurang, kuota, akses file, dan kebijakan organisasi; penyebab yang tidak tersedia tetap dinyatakan belum diketahui. Respons mentah/token tidak dicetak.
 
 ## Pemulihan & batasan
 
@@ -60,4 +64,4 @@ Link baru ditulis setelah semua file folder berhasil diunggah dan data Sheets di
 
 403: periksa API aktif, test user, scope dan hak edit. 404: periksa link/akses. 401 atau token habis: login lagi. OAuth access_denied: periksa test user serta persetujuan izin. Pesan error tidak menampilkan token atau isi respons rahasia.
 
-Pengujian otomatis mencakup 22 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.
+Pengujian otomatis mencakup 29 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.
