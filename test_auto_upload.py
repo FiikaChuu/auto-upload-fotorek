@@ -162,10 +162,26 @@ class Tests(unittest.TestCase):
                 self.assertEqual(calls,['upload','write'])
                 app.upload_job(drive,sheets,'sid','did','NOV',job,[folder],'account')
                 self.assertEqual(calls,['upload','write','write'])
+
                 rows[1].append('link-from-someone-else')
                 with self.assertRaisesRegex(ValueError,'Sheets berubah'):
                     app.upload_job(drive,sheets,'sid','did','NOV',job,[folder],'account')
                 self.assertEqual(calls,['upload','write','write'])
+
+    def test_failed_upload_has_file_context_and_does_not_write_link(self):
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);folder=root/'11';folder.mkdir();(folder/'edited.jpg').write_bytes(b'photo')
+            drive,sheets=Mock(),Mock()
+            drive.files.return_value.create.return_value.execute.return_value={'id':'folder'}
+            error=HttpError(Response({'status':'400','reason':'Bad Request'}),b'{"error":{"message":"Invalid mime type"}}')
+            drive.files.return_value.create.return_value.next_chunk.side_effect=error
+            with patch.object(app,'STATE',root/'state'):
+                with self.assertRaises(HttpError) as result:
+                    app.upload_job(drive,sheets,'sid','did','NOV',{'folder':folder,'no':11,'row':12},[folder],'account')
+            self.assertEqual(result.exception.upload_operation,'Mengunggah file: edited.jpg')
+            sheets.spreadsheets.return_value.values.return_value.update.assert_not_called()
 
 
 if __name__=='__main__':

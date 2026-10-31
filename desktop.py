@@ -25,7 +25,8 @@ class Writer:
 def error_message(exc):
     from googleapiclient.errors import HttpError
     if isinstance(exc, HttpError):
-        return http_message(exc)
+        operation=getattr(exc,'upload_operation',None)
+        return (f'Tahap gagal: {operation}\n\n' if operation else '') + http_message(exc)
     if isinstance(exc, (ValueError, FileNotFoundError)):
         return str(exc)
     return f'{type(exc).__name__}: proses belum berhasil. Periksa koneksi dan sambungkan Google kembali.'
@@ -308,7 +309,7 @@ class App:
         def success(completed):
             self.status.set(f'Selesai: {completed} folder diunggah dan link ditulis ke Sheets. Klik Periksa pencocokan untuk status terbaru.')
             messagebox.showinfo('Selesai',f'{completed} folder selesai diproses.',parent=self.root)
-        self.work(lambda:flow.execute(self.clients,prepared),success,'Mengunggah folder. Jangan ubah file sumber atau Sheets selama proses.')
+        self.work(lambda:flow.execute(self.clients,prepared),success,'Upload folder dan pencatatan link ke Sheets')
 
     def close(self):
         if self.busy and not messagebox.askyesno('Proses masih berjalan','Tutup dan hentikan proses? Folder parsial bisa tersisa di Drive. File yang sudah selesai dapat dilanjutkan nanti.',parent=self.root):

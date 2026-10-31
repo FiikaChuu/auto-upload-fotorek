@@ -1,6 +1,27 @@
 """Translate Google failures using structured reasons, without exposing responses."""
 import json
 import re
+from contextlib import contextmanager
+
+
+@contextmanager
+def api_action(description):
+    from googleapiclient.errors import HttpError
+    try:
+        yield
+    except HttpError as exc:
+        exc.upload_operation=description
+        raise
+
+
+def safe_description(message):
+    if not isinstance(message,str) or not message.strip():
+        return 'Google tidak menyertakan alasan terperinci.'
+    # Do not expose authentication material even if a server unexpectedly echoes it.
+    if re.search(r'\b(access_token|refresh_token|id_token|client_secret|authorization|bearer)\b|\b(?:token|code)\s*[:=]|ya29\.|GOCSPX-|eyJ[A-Za-z0-9_-]+\.',message,re.I):
+        return 'Detail autentikasi disembunyikan. Sambungkan ulang akun Google.'
+    message=re.sub(r'https?://\S+','[tautan disembunyikan]',message)
+    return ' '.join(''.join(c for c in message if c.isprintable() or c.isspace()).split())[:1000]
 
 
 def http_message(exc):
@@ -34,6 +55,15 @@ def http_message(exc):
             service = 'sheets.googleapis.com' if re.search('Google Sheets API', message, re.I) else 'drive.googleapis.com'
     if status == 401:
         return 'Sesi Google tidak berlaku. Klik Ganti akun untuk login ulang.'
+    if status == 400:
+        detail=safe_description(message)
+        if isinstance(message,str) and re.search(r'mime.?type',message,re.I):
+            advice='Google menolak informasi jenis file. Catat nama dan ekstensi file yang tercantum pada tahap gagal.'
+        elif isinstance(message,str) and re.search(r'range|a1 notation',message,re.I):
+            advice='Periksa tab dan huruf kolom tujuan. Ini berkaitan dengan alamat sel Sheets.'
+        else:
+            advice='Permintaan aplikasi ditolak Google. Pesan ini tidak membuktikan Anda mengubah file atau Sheets.'
+        return f'Google menolak permintaan (HTTP 400).\nAlasan Google: {detail}\n\n{advice}'
     if reasons & {'servicedisabled', 'accessnotconfigured'}:
         api = {'drive.googleapis.com':'Google Drive API', 'sheets.googleapis.com':'Google Sheets API'}.get(service, 'API Google yang diperlukan')
         return f'{api} belum aktif pada proyek OAuth aplikasi.\n\nKlik Pengaturan API, aktifkan API tersebut pada proyek yang sama dengan file OAuth JSON, tunggu beberapa menit, lalu coba tombol tadi lagi. Tidak perlu membuat JSON baru.'

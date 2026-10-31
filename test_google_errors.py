@@ -1,7 +1,7 @@
 import json
 import unittest
 from types import SimpleNamespace
-from google_errors import http_message
+from google_errors import http_message, api_action
 
 
 def failure(status=403,reason=None,service=None,message=''):
@@ -45,6 +45,29 @@ class ErrorTests(unittest.TestCase):
         error.content=b'{"error":{"errors":null,"details":123}}'
         self.assertIn('HTTP 403',http_message(error))
         self.assertIn('Sesi Google',http_message(failure(status=401)))
+
+    def test_bad_request_shows_google_reason(self):
+        text=http_message(failure(status=400,message='Invalid mime type provided'))
+        self.assertIn('Invalid mime type provided',text)
+        self.assertIn('jenis file',text)
+        text=http_message(failure(status=400,message='Unable to parse range: NOV!G12'))
+        self.assertIn('Unable to parse range',text)
+        self.assertIn('alamat sel',text)
+
+    def test_bad_request_never_echoes_credentials(self):
+        for secret in ['access_token=DO-NOT-PRINT','Bearer DO-NOT-PRINT','token: DO-NOT-PRINT','ya29.DO-NOT-PRINT','client_secret=DO-NOT-PRINT']:
+            self.assertNotIn('DO-NOT-PRINT',http_message(failure(status=400,message=secret)))
+        self.assertNotIn('DO-NOT-PRINT',http_message(failure(status=400,message='Invalid https://example.com/upload?secret=DO-NOT-PRINT')))
+
+    def test_operation_is_attached_without_replacing_error(self):
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        error=HttpError(Response({'status':'400','reason':'Bad Request'}),b'{"error":{"message":"Invalid argument"}}')
+        with self.assertRaises(HttpError) as result:
+            with api_action('Mengunggah file: edited.jpg'):
+                raise error
+        self.assertIs(result.exception,error)
+        self.assertEqual(error.upload_operation,'Mengunggah file: edited.jpg')
 
 
 if __name__=='__main__':

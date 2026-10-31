@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from matching import number, detect, column, extract
+from google_errors import api_action
 
 BASE = Path(__file__).resolve().parent
 STATE = BASE / '.auto-upload'
@@ -96,7 +97,8 @@ def tabs(sheets, sid):
 
 def read_sheet(sheets, sid, tab, columns=None):
     quoted = "'" + tab.replace("'", "''") + "'"
-    rows = sheets.spreadsheets().values().get(spreadsheetId=sid, range=quoted, valueRenderOption='FORMATTED_VALUE').execute().get('values', [])
+    with api_action('Membaca data Sheets pada tab ' + tab):
+        rows = sheets.spreadsheets().values().get(spreadsheetId=sid, range=quoted, valueRenderOption='FORMATTED_VALUE').execute().get('values', [])
     header, cols = detect(rows[:50], columns)
     return quoted, rows, header, cols
 
@@ -143,7 +145,8 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account, columns=
     statefile = STATE / 'uploads' / (key + '.json')
     cp = load(statefile)
     def create(name, parent):
-        return drive.files().create(body={'name': name, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [parent]}, fields='id', supportsAllDrives=True).execute()['id']
+        with api_action('Membuat folder Drive: ' + name):
+            return drive.files().create(body={'name': name, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [parent]}, fields='id', supportsAllDrives=True).execute()['id']
     if not cp:
         cp = {'id': create(folder.name, did), 'dirs': {}, 'files': []}
         save(statefile, cp)
@@ -164,10 +167,13 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account, columns=
                 cp['dirs'][name] = create(part, parent)
                 save(statefile, cp)
             parent = cp['dirs'][name]
-        request = drive.files().create(body={'name': path.name, 'parents': [parent]}, media_body=MediaFileUpload(str(path), resumable=True, chunksize=8*1024*1024), fields='id', supportsAllDrives=True)
+        print('  Mengunggah:', relative, flush=True)
+        with api_action('Menyiapkan upload file: ' + relative):
+            request = drive.files().create(body={'name': path.name, 'parents': [parent]}, media_body=MediaFileUpload(str(path), resumable=True, chunksize=8*1024*1024), fields='id', supportsAllDrives=True)
         response = None
         while response is None:
-            status, response = request.next_chunk(num_retries=2)
+            with api_action('Mengunggah file: ' + relative):
+                status, response = request.next_chunk(num_retries=2)
             if status:
                 print(f'  {relative}: {status.progress():.0%}', flush=True)
         cp['files'].append(relative)
@@ -180,7 +186,8 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account, columns=
     if fresh['error'] or fresh['row'] != job['row']:
         raise ValueError('Sheets berubah. Folder tersimpan, link belum ditulis: ' + url)
     destination = f'{quoted}!{column(cols["link"])}{job["row"]}'
-    sheets.spreadsheets().values().update(spreadsheetId=sid, range=destination, valueInputOption='RAW', body={'values': [[url]]}).execute()
+    with api_action('Menulis link folder ' + folder.name + ' ke ' + destination):
+        sheets.spreadsheets().values().update(spreadsheetId=sid, range=destination, valueInputOption='RAW', body={'values': [[url]]}).execute()
     print('Link berhasil ditulis:', destination)
 
 
