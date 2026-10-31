@@ -1,7 +1,9 @@
-node_modules/
 .env
 *.log
+.venv/
 .venv-desktop/
+.auto-upload/
 credentials.json
 client_secret*.json
 __pycache__/
+*.zip
