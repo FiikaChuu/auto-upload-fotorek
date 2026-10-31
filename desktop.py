@@ -105,7 +105,7 @@ class App:
         ttk.Label(dest, text='Sesuai contoh: No.=A, PIC=D, Link Drive=G. Nomor folder tetap dideteksi otomatis.').grid(row=4, column=0, columnspan=3, sticky='w', pady=(6, 0))
         actions = ttk.Frame(outer); actions.pack(fill='x', pady=12)
         self.button(actions, '4. Periksa pencocokan', self.preview).pack(side='left')
-        self.upload_button = self.button(actions, '5. Upload & isi Sheets', self.upload)
+        self.upload_button = self.button(actions, '5. Upload & buat chip Drive', self.upload)
         self.upload_button.pack(side='left', padx=8)
         self.table = ttk.Treeview(outer, columns=('folder','number','cell','status'), show='headings', height=6)
         for key, title, width in [('folder','Folder',200),('number','No.',60),('cell','Sel Link Drive',200),('status','Hasil pemeriksaan',300)]:
@@ -295,19 +295,19 @@ class App:
                 self.table.insert('','end',values=(job['folder'].name,job['no'],cell,job['error'] or 'Siap diunggah'))
             core.save(core.STATE/'settings.json',{'sheet':sheet,'drive':drive,'columns':column_values,'auto_columns':automatic})
             count=sum(not j['error'] for j in prepared['jobs'])
-            self.status.set(f'{count} folder siap. Link baru ditulis setelah semua file dalam folder selesai diunggah.')
+            self.status.set(f'{count} folder siap. Chip folder Drive dibuat setelah semua file dalam folder selesai diunggah.')
         self.work(lambda:flow.prepare(self.clients,folders,sheet,drive,tab,columns),success,'Memeriksa nomor, PIC afzal, dan sel tujuan…')
 
     def upload(self):
         if not self.prepared:
             return
         count=sum(not j['error'] for j in self.prepared['jobs'])
-        if not messagebox.askyesno('Mulai upload?',f'Upload {count} folder ke Drive dan tulis link ke tab {self.prepared["tab"]}?',parent=self.root):
+        if not messagebox.askyesno('Mulai upload?',f'Upload {count} folder ke Drive dan buat chip folder pada kolom Link Drive di tab {self.prepared["tab"]}?',parent=self.root):
             return
         prepared=self.prepared
         self.invalidate()
         def success(completed):
-            self.status.set(f'Selesai: {completed} folder diunggah dan link ditulis ke Sheets. Klik Periksa pencocokan untuk status terbaru.')
+            self.status.set(f'Selesai: {completed} folder diunggah dan chip Drive dibuat di Sheets. Klik Periksa pencocokan untuk status terbaru.')
             messagebox.showinfo('Selesai',f'{completed} folder selesai diproses.',parent=self.root)
         self.work(lambda:flow.execute(self.clients,prepared),success,'Upload folder dan pencatatan link ke Sheets')
 

@@ -38,6 +38,7 @@ class HeaderTests(unittest.TestCase):
             root=Path(temp);folder=root/'11';folder.mkdir();(folder/'edited.jpg').write_bytes(b'edited')
             rows=[['No.','Reference','Location','PIC','PIC','Link Drive','Link Drive']]+[[] for _ in range(10)]+[['11','','','afzal','kayla','existing-hidden-link','']]
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             sheets.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value={'values':rows}
             drive.files.return_value.get.return_value.execute.return_value={'mimeType':'application/vnd.google-apps.folder','capabilities':{'canAddChildren':True}}
             drive.about.return_value.get.return_value.execute.return_value={'user':{'permissionId':'account'}}
@@ -47,10 +48,10 @@ class HeaderTests(unittest.TestCase):
                 prepared=flow.prepare((drive,sheets),[folder],'sid','did','FEEDS-OKT',{'no':0,'pic':3,'link':6})
                 self.assertFalse(prepared['jobs'][0]['error'])
                 self.assertEqual(flow.execute((drive,sheets),prepared),1)
-            writes=sheets.spreadsheets.return_value.values.return_value.update.call_args_list
+            writes=sheets.spreadsheets.return_value.batchUpdate.call_args_list
             self.assertEqual(len(writes),1)
-            self.assertEqual(writes[0].kwargs['range'],"'FEEDS-OKT'!G12")
-            self.assertEqual(writes[0].kwargs['body']['values'],[['https://drive.google.com/drive/folders/folder11']])
+            self.assertEqual(writes[0].kwargs['body']['requests'][0]['updateCells']['start'],{'sheetId':0,'rowIndex':11,'columnIndex':6})
+            self.assertEqual(writes[0].kwargs['body']['requests'][0]['updateCells']['rows'][0]['values'][0]['chipRuns'][0]['chip']['richLinkProperties']['uri'],'https://drive.google.com/drive/folders/folder11')
 
 
 if __name__=='__main__':

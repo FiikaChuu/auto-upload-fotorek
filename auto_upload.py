@@ -101,6 +101,36 @@ def account_key(drive):
         return drive.about().get(fields='user(permissionId)').execute()['user']['permissionId']
 
 
+def write_drive_chip(sheets, sid, tab, row, col, url):
+    """Write one native Drive rich-link chip, preserving the cell's formatting."""
+    if type(row) is not int or row < 1 or type(col) is not int or col < 0:
+        raise ValueError('Alamat sel chip tidak valid.')
+    if not is_drive_folder_url(url):
+        raise ValueError('Chip harus menggunakan link folder Google Drive yang valid.')
+    with api_action('Mencari tab tujuan chip Drive: ' + tab):
+        metadata=sheets.spreadsheets().get(spreadsheetId=sid,fields='sheets(properties(sheetId,title))').execute()
+    matches=[s['properties']['sheetId'] for s in metadata.get('sheets',[]) if s.get('properties',{}).get('title')==tab]
+    if len(matches)!=1 or type(matches[0]) is not int:
+        raise ValueError('Tab tujuan chip tidak ditemukan atau tidak unik. Muat ulang daftar tab.')
+    cell={
+        'userEnteredValue':{'stringValue':'@'},
+        'chipRuns':[{'startIndex':0,'chip':{'richLinkProperties':{'uri':url}}}],
+    }
+    body={'requests':[{'updateCells':{
+        'start':{'sheetId':matches[0],'rowIndex':row-1,'columnIndex':col},
+        'rows':[{'values':[cell]}],
+        'fields':'userEnteredValue,chipRuns',
+    }}]}
+    destination=f"{tab}!{column(col)}{row}"
+    with api_action('Menulis chip folder Drive ke ' + destination):
+        sheets.spreadsheets().batchUpdate(spreadsheetId=sid,body=body).execute()
+
+
+def is_drive_folder_url(url):
+    import re
+    return isinstance(url,str) and re.fullmatch(r'https://drive\.google\.com/drive/folders/[A-Za-z0-9_-]+',url) is not None
+
+
 def read_sheet(sheets, sid, tab, columns=None):
     quoted = "'" + tab.replace("'", "''") + "'"
     with api_action('Membaca data Sheets pada tab ' + tab):
@@ -192,9 +222,8 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account, columns=
     if fresh['error'] or fresh['row'] != job['row']:
         raise ValueError('Sheets berubah. Folder tersimpan, link belum ditulis: ' + url)
     destination = f'{quoted}!{column(cols["link"])}{job["row"]}'
-    with api_action('Menulis link folder ' + folder.name + ' ke ' + destination):
-        sheets.spreadsheets().values().update(spreadsheetId=sid, range=destination, valueInputOption='RAW', body={'values': [[url]]}).execute()
-    print('Link berhasil ditulis:', destination)
+    write_drive_chip(sheets,sid,tab,job['row'],cols['link'],url)
+    print('Chip folder berhasil ditulis:', destination)
 
 
 def step(index, title):
@@ -354,7 +383,7 @@ def sync_drive(clients=None):
             raise ValueError('Sheets berubah; proses dihentikan agar link tidak salah baris.')
         url = 'https://drive.google.com/drive/folders/' + by_name[job['folder'].name]
         destination = f'{quoted}!{column(ci["link"])}{job["row"]}'
-        sheets.spreadsheets().values().update(spreadsheetId=sid, range=destination, valueInputOption='RAW', body={'values': [[url]]}).execute()
+        write_drive_chip(sheets,sid,tab,job['row'],ci['link'],url)
         print(f'No. {job["no"]} -> {destination}: {url}')
     print('Selesai. Tidak ada file yang diunggah ulang.')
 

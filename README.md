@@ -17,11 +17,17 @@ Jika Windows menolak skrip VBS karena kebijakan perangkat, gunakan `pythonw boot
 2. **Tambah folder…**: pilih folder bernomor seperti `11`, atau induk yang berisi `11`, `13`, `15`. Tambahkan beberapa kali bila folder tersebar. Tidak perlu rentang nomor.
 3. Isi **Link folder Drive tujuan** dan **Link Google Sheets**. Klik **Muat tab**, lalu pilih tab bulan yang sesuai.
 4. Klik **Periksa pencocokan**. Tabel menampilkan nomor folder, alamat sel tujuan, dan alasan dilewati bila ada.
-5. Klik **Upload & isi Sheets**, lalu konfirmasi. Panel aktivitas menampilkan file yang berhasil diunggah dan link folder. Pengaturan terkunci selama bekerja.
+5. Klik **Upload & buat chip Drive**, lalu konfirmasi. Panel aktivitas menampilkan file yang berhasil diunggah dan link folder. Pengaturan terkunci selama bekerja.
 
-Contoh: folder lokal `11` diunggah ke Drive, baru link folder hasil upload ditulis ke `FEEDS-OKT!G12` bila No. `11` dan PIC `afzal` berada pada baris 12. Nomor folder dicocokkan ke nilai kolom No., bukan nomor baris Sheets. Kolom Reference tidak diubah. Nomor ganda, PIC lain, dan Link Drive yang sudah terisi dilewati. Nama folder Drive mengikuti nama folder sumber. Semua isi dan subfolder file disalin; subfolder kosong dan symlink dilewati. Hak berbagi tidak diubah menjadi publik dan link ditulis sebagai URL biasa.
+Contoh: folder lokal `11` diunggah ke Drive, baru link folder hasil upload ditulis ke `FEEDS-OKT!G12` bila No. `11` dan PIC `afzal` berada pada baris 12. Nomor folder dicocokkan ke nilai kolom No., bukan nomor baris Sheets. Kolom Reference tidak diubah. Nomor ganda, PIC lain, dan Link Drive yang sudah terisi dilewati. Nama folder Drive mengikuti nama folder sumber. Semua isi dan subfolder file disalin; subfolder kosong dan symlink dilewati. Hak berbagi tidak diubah menjadi publik. Link ditulis sebagai **smart chip folder Drive**: ikon Drive dan nama folder (misalnya 11 atau 15), yang dapat diklik. Google menentukan nama tampilan dari folder Drive.
 
 Pengaturan kolom awal mengikuti contoh Sheets pengguna: **No.=A, PIC=D, Link Drive=G**. Judul kolom pada huruf tersebut harus cocok dan ditemukan di 50 baris pertama; jika tidak cocok, proses berhenti tanpa menulis. Bila tata letak berbeda, ubah huruf kolom atau centang **Deteksi otomatis**. Mode otomatis menolak judul lengkap yang ambigu, tetapi melewati baris dekoratif yang hanya mengulang sebagian kata header. Kolom tersembunyi tetap diperhitungkan berdasarkan huruf sebenarnya. Pengaturan kolom disimpan dan dipakai kembali, termasuk pemeriksaan terakhir sebelum penulisan. Tab bulan tetap dipilih agar nomor yang berulang antarbulan tidak tertukar. Mengubah input membatalkan pratinjau dan membutuhkan pemeriksaan ulang.
+
+## Chip folder Drive
+
+Sesudah seluruh isi folder selesai diunggah, aplikasi menggunakan Sheets `batchUpdate/updateCells` untuk menulis placeholder `@` dan `chipRuns.richLinkProperties.uri` pada satu sel Link Drive. Hanya nilai dan chip sel tersebut diperbarui; format, warna, validasi dan sel lain tidak diubah. OAuth scope Drive yang sudah diminta aplikasi mencukupi untuk menulis chip Drive. Jika Google menolak chip, error ditampilkan, URL folder tetap ada di panel aktivitas dan checkpoint dapat dipakai saat retry; aplikasi tidak beralih diam-diam menjadi URL biasa.
+
+Sel yang sudah berisi URL/chip tetap dilewati. Fitur ini berlaku untuk penulisan hasil upload atau sinkronisasi berikutnya pada sel kosong; tidak mengubah URL lama secara massal. API smart chip sudah diverifikasi pada schema SDK Google dan pengujian API tiruan, tetapi rendering chip dan akses Google nyata perlu diuji oleh pengguna.
 
 ## Kemampuan tambahan
 
@@ -49,7 +55,7 @@ python auto_upload.py login
 python auto_upload.py tabs
 python auto_upload.py upload
 python auto_upload.py sync
-python -m unittest -v test_auto_upload test_upload_flow test_google_errors test_headers
+python -m unittest -v test_auto_upload test_upload_flow test_google_errors test_headers test_smart_chips
 ```
 
 ## Bila muncul judul kolom ganda
@@ -72,4 +78,4 @@ Link baru ditulis setelah semua file folder berhasil diunggah dan data Sheets di
 
 403: periksa API aktif, test user, scope dan hak edit. 404: periksa link/akses. 401 atau token habis: login lagi. OAuth access_denied: periksa test user serta persetujuan izin. Pesan error tidak menampilkan token atau isi respons rahasia.
 
-Pengujian otomatis mencakup 41 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.
+Pengujian otomatis mencakup 46 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.

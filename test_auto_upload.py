@@ -78,20 +78,21 @@ class Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);folder=root/'11';folder.mkdir();(folder/'edited.jpg').write_bytes(b'edited')
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.files.return_value.get.return_value.execute.return_value={'mimeType':'application/vnd.google-apps.folder','capabilities':{'canAddChildren':True}}
             drive.about.return_value.get.return_value.execute.return_value={'user':{'permissionId':'account'}}
             drive.files.return_value.create.return_value.execute.return_value={'id':'uploaded-11'}
             order=[]
             drive.files.return_value.create.return_value.next_chunk.side_effect=lambda **kw:(order.append('upload') or (None,{'id':'photo'}))
-            sheets.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect=lambda:order.append('write')
+            sheets.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect=lambda:order.append('write')
             rows=[['No.','Reference','Location','PIC','','','Link Drive']]+[[] for _ in range(10)]+[['11','','','afzal']]
             cols={'no':0,'pic':3,'link':6}
             with patch.object(app,'STATE',root/'state'),patch.object(app,'select_local_folders',return_value=[folder]),patch.object(app,'tabs',return_value=['FEEDS-OKT']),patch.object(app,'ask',side_effect=['sheet-id','1','drive-id','UPLOAD']),patch.object(app,'read_sheet',return_value=("'FEEDS-OKT'",rows,0,cols)):
                 app.configure_and_upload((drive,sheets))
             self.assertEqual(order,['upload','write'])
-            write=sheets.spreadsheets.return_value.values.return_value.update.call_args.kwargs
-            self.assertEqual(write['range'],"'FEEDS-OKT'!G12")
-            self.assertEqual(write['body']['values'],[['https://drive.google.com/drive/folders/uploaded-11']])
+            write=sheets.spreadsheets.return_value.batchUpdate.call_args.kwargs
+            self.assertEqual(write['body']['requests'][0]['updateCells']['start'],{'sheetId':0,'rowIndex':11,'columnIndex':6})
+            self.assertEqual(write['body']['requests'][0]['updateCells']['rows'][0]['values'][0]['chipRuns'][0]['chip']['richLinkProperties']['uri'],'https://drive.google.com/drive/folders/uploaded-11')
 
     def test_drive_folder_pagination(self):
         drive=Mock()
@@ -109,6 +110,7 @@ class Tests(unittest.TestCase):
     def test_wizard_first_login_then_local_upload(self):
         with tempfile.TemporaryDirectory() as temp:
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.about.return_value.get.return_value.execute.return_value={'user':{'emailAddress':'user@example.test'}}
             order=[]
             with patch.object(app,'STATE',Path(temp)),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login',side_effect=lambda *_:order.append('login')),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'ask',return_value='1'),patch.object(app,'configure_and_upload',side_effect=lambda *_:order.append('upload')) as upload:
@@ -120,6 +122,7 @@ class Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);(root/'token.json').write_text('{}')
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.about.return_value.get.return_value.execute.return_value={'user':{'emailAddress':'user@example.test'}}
             with patch.object(app,'STATE',root),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'login') as login,patch.object(app,'ask',side_effect=['bad','2']),patch.object(app,'configure_and_upload') as upload:
                 app.wizard()
@@ -130,6 +133,7 @@ class Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);(root/'token.json').write_text('{}')
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.about.return_value.get.return_value.execute.return_value={'user':{}}
             with patch.object(app,'STATE',root),patch.object(app,'services',side_effect=[ValueError('expired'),(drive,sheets)]),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login') as login,patch.object(app,'ask',return_value='1'),patch.object(app,'configure_and_upload'):
                 app.wizard()
@@ -138,23 +142,25 @@ class Tests(unittest.TestCase):
     def test_sync_drive_nonconsecutive_numbers_without_upload(self):
         with tempfile.TemporaryDirectory() as temp:
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             folders=[{'name':str(n),'id':'folder-'+str(n)} for n in [11,13,15,17,19,21,24]]
             rows=[['No.','PIC','Link Drive']]+[[f['name'],'afzal'] for f in folders]
             cols={'no':0,'pic':1,'link':2}
             with patch.object(app,'STATE',Path(temp)),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'tabs',return_value=['NOV']),patch.object(app,'ask',side_effect=['sheet-id','1','drive-id','ISI']),patch.object(app,'drive_folders',return_value=folders),patch.object(app,'read_sheet',return_value=("'NOV'",rows,0,cols)):
                 app.sync_drive()
-            writes=sheets.spreadsheets.return_value.values.return_value.update.call_args_list
+            writes=sheets.spreadsheets.return_value.batchUpdate.call_args_list
             self.assertEqual(len(writes),7)
-            self.assertEqual(writes[-1].kwargs['body']['values'],[['https://drive.google.com/drive/folders/folder-24']])
+            self.assertEqual(writes[-1].kwargs['body']['requests'][0]['updateCells']['rows'][0]['values'][0]['chipRuns'][0]['chip']['richLinkProperties']['uri'],'https://drive.google.com/drive/folders/folder-24')
             drive.files.return_value.create.assert_not_called()
 
     def test_upload_order_checkpoint_and_changed_sheet(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);folder=root/'11';folder.mkdir();(folder/'photo').write_bytes(b'photo')
             drive,sheets=Mock(),Mock();calls=[]
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.files.return_value.create.return_value.execute.return_value={'id':'folder'}
             drive.files.return_value.create.return_value.next_chunk.side_effect=lambda **kw: (calls.append('upload') or (None,{'id':'file'}))
-            sheets.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect=lambda: calls.append('write')
+            sheets.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect=lambda: calls.append('write')
             rows=[['No.','PIC','Link Drive'],['11','afzal']];cols={'no':0,'pic':1,'link':2}
             job={'folder':folder,'no':11,'row':2}
             with patch.object(app,'STATE',root/'state'),patch.object(app,'read_sheet',return_value=("'NOV'",rows,0,cols)):
@@ -174,6 +180,7 @@ class Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);folder=root/'11';folder.mkdir();(folder/'edited.jpg').write_bytes(b'photo')
             drive,sheets=Mock(),Mock()
+            sheets.spreadsheets.return_value.get.return_value.execute.return_value={'sheets':[{'properties':{'title':'FEEDS-OKT','sheetId':0}},{'properties':{'title':'NOV','sheetId':1}}]}
             drive.files.return_value.create.return_value.execute.return_value={'id':'folder'}
             error=HttpError(Response({'status':'400','reason':'Bad Request'}),b'{"error":{"message":"Invalid mime type"}}')
             drive.files.return_value.create.return_value.next_chunk.side_effect=error
@@ -181,7 +188,7 @@ class Tests(unittest.TestCase):
                 with self.assertRaises(HttpError) as result:
                     app.upload_job(drive,sheets,'sid','did','NOV',{'folder':folder,'no':11,'row':12},[folder],'account')
             self.assertEqual(result.exception.upload_operation,'Mengunggah file: edited.jpg')
-            sheets.spreadsheets.return_value.values.return_value.update.assert_not_called()
+            sheets.spreadsheets.return_value.batchUpdate.assert_not_called()
 
 
 if __name__=='__main__':
