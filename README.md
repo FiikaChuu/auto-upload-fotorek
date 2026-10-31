@@ -62,7 +62,7 @@ Login dapat berhasil meskipun Google Sheets API belum aktif. Klik **Pengaturan A
 
 ## Bila upload ditolak (HTTP 400)
 
-HTTP 400 berarti Google menolak permintaan aplikasi; bukan bukti bahwa pengguna mengubah file atau Sheets. Versi terbaru menunjukkan tahap yang gagal (membuat folder, mengunggah nama file, membaca Sheets, atau menulis alamat sel) dan pesan alasan Google yang sudah disaring agar tidak menampilkan data autentikasi. Panel aktivitas menampilkan nama file sebelum upload dimulai. Penyebab sebenarnya harus ditentukan dari pesan tersebut, bukan ditebak sebagai masalah koneksi. Jangan hapus checkpoint saat melanjutkan dengan sumber/akun/tujuan yang sama.
+HTTP 400 berarti Google menolak permintaan aplikasi; bukan bukti bahwa pengguna mengubah file atau Sheets. Versi terbaru menunjukkan tahap yang gagal (membuat folder, mengunggah nama file, membaca Sheets, atau menulis alamat sel) dan pesan alasan Google yang sudah disaring agar tidak menampilkan data autentikasi. Panel aktivitas menampilkan nama file sebelum upload dimulai. Pemeriksaan identitas akun sebelum upload memakai selector Drive `user(permissionId)`; kegagalan pada tahap ini diberi konteks terpisah dan tidak membuat folder/file terlebih dahulu. Penyebab sebenarnya harus ditentukan dari pesan tersebut, bukan ditebak sebagai masalah koneksi. Jangan hapus checkpoint saat melanjutkan dengan sumber/akun/tujuan yang sama.
 
 ## Pemulihan & batasan
 
@@ -72,4 +72,4 @@ Link baru ditulis setelah semua file folder berhasil diunggah dan data Sheets di
 
 403: periksa API aktif, test user, scope dan hak edit. 404: periksa link/akses. 401 atau token habis: login lagi. OAuth access_denied: periksa test user serta persetujuan izin. Pesan error tidak menampilkan token atau isi respons rahasia.
 
-Pengujian otomatis mencakup 39 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.
+Pengujian otomatis mencakup 41 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.

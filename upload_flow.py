@@ -34,7 +34,7 @@ def prepare(clients, folders, sheet, drive, tab, columns=None):
 
 def execute(clients, prepared):
     drive, sheets = clients
-    account = drive.about().get(fields='user.permissionId').execute()['user']['permissionId']
+    account = core.account_key(drive)
     completed = 0
     for job in prepared['jobs']:
         if job['error']:

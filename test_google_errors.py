@@ -69,6 +69,28 @@ class ErrorTests(unittest.TestCase):
         self.assertIs(result.exception,error)
         self.assertEqual(error.upload_operation,'Mengunggah file: edited.jpg')
 
+    def test_account_preflight_uses_drive_nested_field_selector(self):
+        from unittest.mock import Mock
+        import auto_upload
+        drive=Mock()
+        drive.about.return_value.get.return_value.execute.return_value={'user':{'permissionId':'account'}}
+        self.assertEqual(auto_upload.account_key(drive),'account')
+        drive.about.return_value.get.assert_called_once_with(fields='user(permissionId)')
+
+    def test_preflight_failure_explains_no_upload_started(self):
+        from unittest.mock import Mock
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        import upload_flow
+        drive,sheets=Mock(),Mock()
+        error=HttpError(Response({'status':'400','reason':'Bad Request'}),b'{"error":{"message":"Invalid field selection user.permissionId"}}')
+        drive.about.return_value.get.return_value.execute.side_effect=error
+        with self.assertRaises(HttpError):
+            upload_flow.execute((drive,sheets),{'jobs':[]})
+        self.assertIn('identitas akun',error.upload_operation)
+        drive.files.assert_not_called()
+        sheets.spreadsheets.assert_not_called()
+
 
 if __name__=='__main__':
     unittest.main()

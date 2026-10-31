@@ -91,8 +91,14 @@ def ask(label, default=''):
 
 
 def tabs(sheets, sid):
-    result = sheets.spreadsheets().get(spreadsheetId=sid, fields='sheets.properties.title').execute()
+    with api_action('Memuat daftar tab Google Sheets'):
+        result = sheets.spreadsheets().get(spreadsheetId=sid, fields='sheets(properties(title))').execute()
     return [s['properties']['title'] for s in result.get('sheets', [])]
+
+
+def account_key(drive):
+    with api_action('Memeriksa identitas akun Google sebelum upload'):
+        return drive.about().get(fields='user(permissionId)').execute()['user']['permissionId']
 
 
 def read_sheet(sheets, sid, tab, columns=None):
@@ -274,7 +280,7 @@ def configure_and_upload(clients=None):
         print('Dibatalkan tanpa upload.')
         return
     step(6, 'Upload dan isi link Sheets')
-    account = drive.about().get(fields='user.permissionId').execute()['user']['permissionId']
+    account = account_key(drive)
     for job in jobs:
         if job['error']:
             continue
