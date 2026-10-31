@@ -1,5 +1,30 @@
 # Fotorek Auto Upload
 
+## Aplikasi desktop Windows (tampilan seperti contoh)
+
+Versi desktop ada di `desktop.py`. Tidak membuka halaman localhost untuk antarmuka: jendela aplikasi Windows dipakai untuk semua pengaturan dan upload. Browser hanya dibuka untuk login Google (OAuth menggunakan callback loopback sementara).
+
+1. Download/ekstrak proyek ke `D:\Upload_auto`.
+2. Instal Python 3.12 untuk Windows beserta Python Launcher (`py`) dari python.org.
+3. Klik **Jalankan Desktop.bat**. Pertama kali akan membuat virtual environment dan memasang dependency Google melalui pip; koneksi internet diperlukan.
+4. Isi tautan Drive dan Sheets. Klik **Muat tab / login Google**, login melalui browser, lalu pilih tab bulanan yang benar.
+5. Pilih folder induk yang berisi folder bernomor, misalnya `D:\Bahan` berisi `11`, `12 - VLC`, dan `13`. Isi rentang **nomor konten**, bukan rentang baris.
+6. Klik **Pratinjau Afzal**, periksa hasil, lalu **Mulai upload**.
+
+Header No., PIC, dan Link Drive dideteksi otomatis dalam 50 baris pertama. PIC tetap `afzal`. Kolom boleh berpindah; judul kolom harus dikenali. Folder tanpa nomor, di luar rentang, atau symlink dilewati. Tab bulan dipilih secara eksplisit karena nomor bisa berulang antarbulan. Link ditulis sebagai URL biasa dan tidak mengubah izin berbagi Drive.
+
+### OAuth desktop: satu kali konfigurasi
+
+Link Drive dan Sheets tidak menggantikan izin Google. Di Google Cloud Console, aktifkan **Drive API** dan **Sheets API**, atur consent screen/test user, lalu buat OAuth client jenis **Desktop app**. Download JSON dan simpan sebagai `credentials.json` di sebelah aplikasi, atau gunakan tombol **Pilih JSON**. Client Web dari versi browser tidak dapat dipakai untuk alur desktop ini. JSON tidak boleh dimasukkan ke GitHub.
+
+Sesudah itu pengguna cukup menyambungkan akun Google melalui browser; tidak perlu mengetik Client ID. Token hanya di memori, sehingga perlu login lagi setelah aplikasi ditutup. OAuth JSON diperlukan karena repository ini tidak menyertakan identitas aplikasi Google milik pengembang. Versi desktop membutuhkan akses API Google dari komputer pengguna.
+
+### Batasan desktop
+
+Checkpoint upload disimpan di memori selama aplikasi terbuka. Jika upload atau Sheets gagal, URL folder ditampilkan di log. Klik Pratinjau lagi dan ulangi dalam sesi yang sama untuk melewati file yang berhasil diunggah. Jangan menutup aplikasi atau mengganti akun ketika ingin melanjutkan. Respons jaringan yang hilang dapat menyebabkan file ganda; tidak ada jaminan exactly-once atau rollback folder parsial. Hindari mengedit Sheets selama upload karena pemeriksaan sebelum menulis tidak bersifat transaksi. Pembatalan menunggu file aktif selesai dan folder parsial tetap tersimpan. Jangan mengubah isi folder sumber selama upload.
+
+Sintaks dan fungsi deteksi desktop telah diperiksa di Linux. UI Windows dan login/upload Google nyata belum diuji; membutuhkan Windows, OAuth JSON, dan akun pengguna. Ini aplikasi Python yang diluncurkan dengan klik BAT, belum paket EXE mandiri.
+
 Aplikasi browser berbahasa Indonesia untuk mengunggah banyak folder ke Google Drive dan mengisi link folder di Google Sheets berdasarkan **nomor konten + PIC**, dalam tab dan rentang baris yang dipilih.
 
 ## Jalankan
