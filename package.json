@@ -1,0 +1,1 @@
+{"name":"auto-upload-fotorek","private":true,"type":"module","scripts":{"start":"node server.mjs","test":"node --test test/match.test.mjs"},"engines":{"node":">=20"}}
