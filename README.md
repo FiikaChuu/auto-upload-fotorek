@@ -9,12 +9,16 @@ Upload banyak folder ke Drive, lalu isi link di Google Sheets khusus PIC **afzal
 3. Taruh OAuth JSON unduhan Google (`client_secret_….json`) di folder aplikasi. **Tidak perlu diganti nama**. Satu OAuth Desktop JSON dalam Downloads juga bisa dideteksi. File OAuth pengguna tidak dimasukkan ke GitHub.
 4. Klik **Login Google.bat**. Instalasi dependency pertama membutuhkan internet. Browser membuka login Google. Setelah izin diberikan, token disimpan lokal agar login tidak diulang setiap pemakaian.
 5. Klik **Muat Tab.bat** untuk membaca daftar tab Sheets. Langkah ini terpisah dari login dan tidak melakukan upload.
-6. Klik **Mulai Upload.bat**. Isi link Sheets, pilih nomor urut TAB bulanan, isi link folder Drive tujuan, pilih path folder INDUK sumber, dan rentang nomor konten.
+6. Klik **Mulai Upload.bat**. Isi link Sheets, pilih nomor urut TAB bulanan, isi link folder Drive tujuan, pilih path folder INDUK sumber, tanpa mengisi rentang nomor.
 7. Periksa pratinjau, lalu ketik `UPLOAD` untuk melanjutkan. Jawaban lain membatalkan tanpa upload.
 
 **Auto Upload.bat** menyediakan menu semua langkah. Tidak ada halaman localhost yang harus dibuka. Login memakai callback loopback sementara sesuai alur Google Desktop.
 
 Contoh: sumber `D:\Bahan` berisi folder `11`, `12 - VLC`, `13`. Nomor folder dicocokkan ke nilai kolom No., bukan nomor baris. Tab dipilih secara eksplisit karena nomor bisa berulang antarbulan. Header No., PIC, Link Drive dideteksi otomatis di 50 baris pertama. PIC selain afzal, nomor ambigu/duplikat dan link yang sudah berisi dilewati. File dan subfolder ikut diunggah; symlink dan subfolder kosong dilewati. Akses berbagi tidak diubah menjadi publik. Link ditulis sebagai URL biasa.
+
+## Folder sudah ada di Drive?
+
+Klik **Isi Sheets dari Drive.bat**. Masukkan link Sheets, pilih tab bulan, lalu beri link folder INDUK di Drive. Semua subfolder bernomor langsung di dalamnya (contoh 11, 13, 15, 17, 19, 21, 24) dicocokkan otomatis ke No. yang sama khusus PIC afzal. Tidak ada rentang nomor. Pratinjau ditampilkan; ketik `ISI` untuk menulis link. Mode ini tidak mengunggah file lagi dan tidak membutuhkan folder sumber lokal. Folder bulan tetap dipilih sendiri untuk menghindari salah periode. Nomor ganda atau link sudah terisi dilewati.
 
 ## OAuth satu kali
 
@@ -35,6 +39,7 @@ Python >=3.10. Buat virtual environment, lalu `python -m pip install -r requirem
 python auto_upload.py login
 python auto_upload.py tabs
 python auto_upload.py upload
+python auto_upload.py sync
 python -m unittest -v test_auto_upload
 ```
 

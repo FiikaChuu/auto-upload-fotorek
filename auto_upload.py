@@ -203,13 +203,9 @@ def configure_and_upload():
     root = Path(cfg['folder'])
     if not cfg['folder'] or not root.is_dir():
         raise ValueError('Folder induk tidak ditemukan.')
-    first = int(ask('Nomor konten mulai', '1'))
-    last = int(ask('Nomor konten akhir', '100'))
-    if first < 0 or last < first:
-        raise ValueError('Rentang nomor tidak valid.')
-    folders = [p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and number(p.name) is not None and first <= number(p.name) <= last]
+    folders = [p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and number(p.name) is not None]
     if not folders:
-        raise ValueError('Tidak ada folder bernomor dalam rentang ini.')
+        raise ValueError('Tidak ada folder bernomor di folder induk ini.')
     target = drive.files().get(fileId=did, fields='mimeType,capabilities(canAddChildren)', supportsAllDrives=True).execute()
     if target['mimeType'] != 'application/vnd.google-apps.folder' or not target.get('capabilities', {}).get('canAddChildren'):
         raise ValueError('Akun ini tidak dapat menambah isi folder Drive tujuan.')
@@ -238,15 +234,76 @@ def configure_and_upload():
     print('Selesai. Semua folder berstatus SIAP sudah diproses.')
 
 
+def drive_folders(drive, parent):
+    result = []
+    page = None
+    while True:
+        response = drive.files().list(q=f"'{parent}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'", fields='nextPageToken,files(id,name)', pageSize=1000, pageToken=page, supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+        result.extend(f for f in response.get('files', []) if number(f['name']) is not None)
+        page = response.get('nextPageToken')
+        if not page:
+            return result
+
+
+def sync_drive():
+    drive, sheets = services()
+    cfg = load(STATE / 'settings.json', {})
+    cfg['sheet'] = ask('Link Google Sheets', cfg.get('sheet', ''))
+    sid = extract(cfg['sheet'], 'sheet')
+    names = tabs(sheets, sid)
+    for i, title in enumerate(names, 1):
+        print(f'{i}. {title}')
+    choice = int(ask('Pilih nomor urut TAB bulanan'))
+    if not 1 <= choice <= len(names):
+        raise ValueError('Pilihan tab tidak valid.')
+    tab = names[choice-1]
+    cfg['drive'] = ask('Link folder INDUK di Drive yang berisi 11, 13, dst.', cfg.get('drive', ''))
+    did = extract(cfg['drive'], 'drive')
+    folders = drive_folders(drive, did)
+    if not folders:
+        raise ValueError('Tidak ada subfolder bernomor yang bisa diakses dalam folder Drive ini.')
+    # Use IDs as the stable reference; names may be duplicated in Google Drive.
+    paths = [Path(f['name']) for f in folders]
+    quoted, rows, header, cols = read_sheet(sheets, sid, tab)
+    jobs = make_plan(rows, header, cols, paths)
+    by_name = {f['name']: f['id'] for f in folders}
+    print(f'\nTab: {tab} | PIC: afzal | Semua nomor folder dideteksi otomatis')
+    for job in jobs:
+        print(f'{job["folder"].name} -> baris {job["row"] or "-"}: {job["error"] or "SIAP"}')
+    save(STATE / 'settings.json', cfg)
+    if not any(not j['error'] for j in jobs):
+        print('Tidak ada link yang perlu ditulis.')
+        return
+    if ask('Ketik ISI untuk menulis link folder ke Sheets') != 'ISI':
+        print('Dibatalkan tanpa mengubah Sheets.')
+        return
+    # Require the same source set after user confirmation.
+    fresh_folders = drive_folders(drive, did)
+    if sorted((f['id'], f['name']) for f in fresh_folders) != sorted((f['id'], f['name']) for f in folders):
+        raise ValueError('Folder Drive berubah. Jalankan pratinjau lagi.')
+    for job in jobs:
+        if job['error']:
+            continue
+        quoted, live, hi, ci = read_sheet(sheets, sid, tab)
+        fresh = next(p for p in make_plan(live, hi, ci, paths) if p['folder'] == job['folder'])
+        if fresh['error'] or fresh['row'] != job['row']:
+            raise ValueError('Sheets berubah; proses dihentikan agar link tidak salah baris.')
+        url = 'https://drive.google.com/drive/folders/' + by_name[job['folder'].name]
+        destination = f'{quoted}!{column(ci["link"])}{job["row"]}'
+        sheets.spreadsheets().values().update(spreadsheetId=sid, range=destination, valueInputOption='RAW', body={'values': [[url]]}).execute()
+        print(f'No. {job["no"]} -> {destination}: {url}')
+    print('Selesai. Tidak ada file yang diunggah ulang.')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Auto Upload — khusus PIC afzal')
-    parser.add_argument('command', nargs='?', choices=['login', 'tabs', 'upload', 'logout'])
+    parser.add_argument('command', nargs='?', choices=['login', 'tabs', 'upload', 'sync', 'logout'])
     parser.add_argument('--oauth', help='Lokasi OAuth Desktop JSON untuk login')
     args = parser.parse_args()
     command = args.command
     if not command:
-        print('AUTO UPLOAD\n1. Login Google\n2. Muat tab Sheets\n3. Pratinjau dan upload\n4. Hapus login lokal')
-        command = {'1':'login','2':'tabs','3':'upload','4':'logout'}.get(ask('Pilih'))
+        print('AUTO UPLOAD\n1. Login Google\n2. Muat tab Sheets\n3. Upload folder lokal + isi Sheets\n4. Isi Sheets dari folder di Drive\n5. Hapus login lokal')
+        command = {'1':'login','2':'tabs','3':'upload','4':'sync','5':'logout'}.get(ask('Pilih'))
     if command == 'login':
         login(args.oauth)
     elif command == 'tabs':
@@ -258,6 +315,8 @@ def main():
         save(STATE / 'settings.json', cfg)
     elif command == 'upload':
         configure_and_upload()
+    elif command == 'sync':
+        sync_drive()
     elif command == 'logout':
         (STATE / 'token.json').unlink(missing_ok=True)
         print('Login lokal dihapus. Akses aplikasi juga bisa dicabut melalui pengaturan akun Google.')

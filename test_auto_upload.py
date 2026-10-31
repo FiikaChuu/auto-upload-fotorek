@@ -65,6 +65,27 @@ class Tests(unittest.TestCase):
             root=Path(temp);(root/'sub').mkdir();(root/'sub'/'photo').write_bytes(b'123')
             self.assertEqual([(p,s) for p,s,_ in app.manifest(root)],[(str(Path('sub/photo')),3)])
 
+    def test_drive_folder_pagination(self):
+        drive=Mock()
+        drive.files.return_value.list.return_value.execute.side_effect=[
+            {'files':[{'id':'one','name':'11'},{'id':'skip','name':'other'}],'nextPageToken':'next'},
+            {'files':[{'id':'two','name':'24'}]}]
+        self.assertEqual([f['name'] for f in app.drive_folders(drive,'parent')],['11','24'])
+        self.assertEqual(drive.files.return_value.list.call_args.kwargs['pageToken'],'next')
+
+    def test_sync_drive_nonconsecutive_numbers_without_upload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            drive,sheets=Mock(),Mock()
+            folders=[{'name':str(n),'id':'folder-'+str(n)} for n in [11,13,15,17,19,21,24]]
+            rows=[['No.','PIC','Link Drive']]+[[f['name'],'afzal'] for f in folders]
+            cols={'no':0,'pic':1,'link':2}
+            with patch.object(app,'STATE',Path(temp)),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'tabs',return_value=['NOV']),patch.object(app,'ask',side_effect=['sheet-id','1','drive-id','ISI']),patch.object(app,'drive_folders',return_value=folders),patch.object(app,'read_sheet',return_value=("'NOV'",rows,0,cols)):
+                app.sync_drive()
+            writes=sheets.spreadsheets.return_value.values.return_value.update.call_args_list
+            self.assertEqual(len(writes),7)
+            self.assertEqual(writes[-1].kwargs['body']['values'],[['https://drive.google.com/drive/folders/folder-24']])
+            drive.files.return_value.create.assert_not_called()
+
     def test_upload_order_checkpoint_and_changed_sheet(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);folder=root/'11';folder.mkdir();(folder/'photo').write_bytes(b'photo')
