@@ -9,6 +9,7 @@ from tkinter import ttk, filedialog, messagebox
 import auto_upload as core
 import upload_flow as flow
 from google_errors import http_message
+from matching import parse_columns
 
 
 class Writer:
@@ -51,6 +52,11 @@ class App:
         self.sheet = tk.StringVar(value=cfg.get('sheet', ''))
         self.drive = tk.StringVar(value=cfg.get('drive', ''))
         self.tab = tk.StringVar()
+        saved_columns=cfg.get('columns',{})
+        if not isinstance(saved_columns,dict):
+            saved_columns={}
+        self.column_fields={name:tk.StringVar(value=saved_columns.get(name,default)) for name,default in [('no','A'),('pic','D'),('link','G')]}
+        self.auto_columns=tk.BooleanVar(value=cfg.get('auto_columns',False))
         self.status = tk.StringVar(value='Mulai dengan menyambungkan akun Google.')
         style = ttk.Style()
         style.configure('TButton', padding=(10, 7))
@@ -87,7 +93,15 @@ class App:
         self.combo = ttk.Combobox(dest, textvariable=self.tab, state='readonly')
         self.combo.grid(row=2, column=1, sticky='ew', pady=4)
         self.widgets.append(self.combo)
-        ttk.Label(dest, text='Nomor folder dideteksi otomatis. Kolom No., PIC, dan Link Drive juga dideteksi.').grid(row=3, column=0, columnspan=3, sticky='w', pady=(6, 0))
+        ttk.Label(dest, text='Kolom di Sheets').grid(row=3,column=0,sticky='w')
+        mapping=ttk.Frame(dest);mapping.grid(row=3,column=1,columnspan=2,sticky='w',pady=4)
+        for name,title in [('no','No.'),('pic','PIC'),('link','Link Drive')]:
+            ttk.Label(mapping,text=title).pack(side='left',padx=(0,4))
+            entry=ttk.Entry(mapping,textvariable=self.column_fields[name],width=4)
+            entry.pack(side='left',padx=(0,12));self.widgets.append(entry)
+        checkbox=ttk.Checkbutton(mapping,text='Deteksi otomatis (abaikan huruf)',variable=self.auto_columns)
+        checkbox.pack(side='left');self.widgets.append(checkbox)
+        ttk.Label(dest, text='Sesuai contoh: No.=A, PIC=D, Link Drive=G. Nomor folder tetap dideteksi otomatis.').grid(row=4, column=0, columnspan=3, sticky='w', pady=(6, 0))
         actions = ttk.Frame(outer); actions.pack(fill='x', pady=12)
         self.button(actions, '4. Periksa pencocokan', self.preview).pack(side='left')
         self.upload_button = self.button(actions, '5. Upload & isi Sheets', self.upload)
@@ -101,7 +115,7 @@ class App:
         self.progress.pack(fill='x',pady=(0,5))
         self.log = tk.Text(outer, height=7, state='disabled', wrap='word')
         self.log.pack(fill='x')
-        for variable in (self.drive, self.sheet, self.tab):
+        for variable in (self.drive, self.sheet, self.tab,self.auto_columns,*self.column_fields.values()):
             variable.trace_add('write', lambda *_: self.invalidate())
         self.sheet.trace_add('write', lambda *_: self.clear_tabs())
         self.invalidate()
@@ -266,16 +280,22 @@ class App:
             return
         folders=list(self.folders);sheet=self.sheet.get();drive=self.drive.get();tab=self.tab.get()
         self.invalidate()
+        column_values={name:var.get().strip().upper() for name,var in self.column_fields.items()}
+        automatic=self.auto_columns.get()
+        try:
+            columns=None if automatic else parse_columns(column_values)
+        except ValueError as exc:
+            messagebox.showerror('Pengaturan kolom',str(exc),parent=self.root);return
         def success(prepared):
             self.prepared=prepared
             self.table.delete(*self.table.get_children())
             for job in prepared['jobs']:
                 cell=f'{prepared["quoted"]}!{core.column(prepared["cols"]["link"])}{job["row"]}' if job['row'] else '—'
                 self.table.insert('','end',values=(job['folder'].name,job['no'],cell,job['error'] or 'Siap diunggah'))
-            core.save(core.STATE/'settings.json',{'sheet':sheet,'drive':drive})
+            core.save(core.STATE/'settings.json',{'sheet':sheet,'drive':drive,'columns':column_values,'auto_columns':automatic})
             count=sum(not j['error'] for j in prepared['jobs'])
             self.status.set(f'{count} folder siap. Link baru ditulis setelah semua file dalam folder selesai diunggah.')
-        self.work(lambda:flow.prepare(self.clients,folders,sheet,drive,tab),success,'Memeriksa nomor, PIC afzal, dan sel tujuan…')
+        self.work(lambda:flow.prepare(self.clients,folders,sheet,drive,tab,columns),success,'Memeriksa nomor, PIC afzal, dan sel tujuan…')
 
     def upload(self):
         if not self.prepared:

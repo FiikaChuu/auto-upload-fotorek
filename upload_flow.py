@@ -14,7 +14,7 @@ def add_source(selected, location):
     return sorted(combined.values())
 
 
-def prepare(clients, folders, sheet, drive, tab):
+def prepare(clients, folders, sheet, drive, tab, columns=None):
     if not folders:
         raise ValueError('Pilih folder hasil edit terlebih dahulu.')
     if not tab:
@@ -27,7 +27,7 @@ def prepare(clients, folders, sheet, drive, tab):
     target = drive_api.files().get(fileId=did, fields='mimeType,capabilities(canAddChildren)', supportsAllDrives=True).execute()
     if target.get('mimeType') != 'application/vnd.google-apps.folder' or not target.get('capabilities', {}).get('canAddChildren'):
         raise ValueError('Akun ini tidak bisa menambah file ke folder Drive tujuan.')
-    quoted, rows, header, cols = core.read_sheet(sheets, sid, tab)
+    quoted, rows, header, cols = core.read_sheet(sheets, sid, tab, columns)
     jobs = core.make_plan(rows, header, cols, folders)
     return {'sid': sid, 'did': did, 'tab': tab, 'quoted': quoted, 'cols': cols, 'folders': folders, 'jobs': jobs}
 
@@ -39,10 +39,10 @@ def execute(clients, prepared):
     for job in prepared['jobs']:
         if job['error']:
             continue
-        _, rows, header, cols = core.read_sheet(sheets, prepared['sid'], prepared['tab'])
+        _, rows, header, cols = core.read_sheet(sheets, prepared['sid'], prepared['tab'], prepared['cols'])
         fresh = next(p for p in core.make_plan(rows, header, cols, prepared['folders']) if p['folder'] == job['folder'])
         if fresh['error'] or fresh['row'] != job['row'] or cols != prepared['cols']:
             raise ValueError('Sheets berubah. Periksa pencocokan lagi sebelum melanjutkan.')
-        core.upload_job(drive, sheets, prepared['sid'], prepared['did'], prepared['tab'], job, prepared['folders'], account)
+        core.upload_job(drive, sheets, prepared['sid'], prepared['did'], prepared['tab'], job, prepared['folders'], account, columns=prepared['cols'])
         completed += 1
     return completed

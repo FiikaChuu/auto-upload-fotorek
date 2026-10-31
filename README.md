@@ -21,7 +21,7 @@ Jika Windows menolak skrip VBS karena kebijakan perangkat, gunakan `pythonw boot
 
 Contoh: folder lokal `11` diunggah ke Drive, baru link folder hasil upload ditulis ke `FEEDS-OKT!G12` bila No. `11` dan PIC `afzal` berada pada baris 12. Nomor folder dicocokkan ke nilai kolom No., bukan nomor baris Sheets. Kolom Reference tidak diubah. Nomor ganda, PIC lain, dan Link Drive yang sudah terisi dilewati. Nama folder Drive mengikuti nama folder sumber. Semua isi dan subfolder file disalin; subfolder kosong dan symlink dilewati. Hak berbagi tidak diubah menjadi publik dan link ditulis sebagai URL biasa.
 
-Header No., PIC, Link Drive dideteksi otomatis di 50 baris pertama. Tab bulan tetap dipilih agar nomor yang berulang antarbulan tidak tertukar. Mengubah input membatalkan pratinjau dan membutuhkan pemeriksaan ulang.
+Pengaturan kolom awal mengikuti contoh Sheets pengguna: **No.=A, PIC=D, Link Drive=G**. Judul kolom pada huruf tersebut harus cocok dan ditemukan di 50 baris pertama; jika tidak cocok, proses berhenti tanpa menulis. Bila tata letak berbeda, ubah huruf kolom atau centang **Deteksi otomatis**. Mode otomatis menolak judul lengkap yang ambigu, tetapi melewati baris dekoratif yang hanya mengulang sebagian kata header. Kolom tersembunyi tetap diperhitungkan berdasarkan huruf sebenarnya. Pengaturan kolom disimpan dan dipakai kembali, termasuk pemeriksaan terakhir sebelum penulisan. Tab bulan tetap dipilih agar nomor yang berulang antarbulan tidak tertukar. Mengubah input membatalkan pratinjau dan membutuhkan pemeriksaan ulang.
 
 ## Kemampuan tambahan
 
@@ -49,8 +49,12 @@ python auto_upload.py login
 python auto_upload.py tabs
 python auto_upload.py upload
 python auto_upload.py sync
-python -m unittest -v test_auto_upload test_upload_flow test_google_errors
+python -m unittest -v test_auto_upload test_upload_flow test_google_errors test_headers
 ```
+
+## Bila muncul judul kolom ganda
+
+Pesan versi lama berarti deteksi menemukan beberapa kolom bernama sama, termasuk yang tersembunyi. Tidak perlu mengubah Sheets. Di versi baru, biarkan **Deteksi otomatis** tidak dicentang dan isi **No.=A, PIC=D, Link Drive=G**, sesuai screenshot. Klik Periksa pencocokan dan pastikan folder 11 mengarah ke G12 pada tab yang dipilih. Jika kolom lain yang benar pada tab berbeda, ubah hurufnya sebelum memeriksa lagi.
 
 ## Bila Muat tab ditolak (HTTP 403)
 
@@ -64,4 +68,4 @@ Link baru ditulis setelah semua file folder berhasil diunggah dan data Sheets di
 
 403: periksa API aktif, test user, scope dan hak edit. 404: periksa link/akses. 401 atau token habis: login lagi. OAuth access_denied: periksa test user serta persetujuan izin. Pesan error tidak menampilkan token atau isi respons rahasia.
 
-Pengujian otomatis mencakup 29 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.
+Pengujian otomatis mencakup 35 pemeriksaan logika dengan Google API tiruan. Login/upload Google nyata dan peluncur Windows memerlukan komputer serta persetujuan akun pengguna; belum diklaim sudah berhasil. UI tidak menyimpan token di GitHub. Tidak ada preview localhost; browser hanya dipakai untuk login Google.

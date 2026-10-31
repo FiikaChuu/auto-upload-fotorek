@@ -94,10 +94,10 @@ def tabs(sheets, sid):
     return [s['properties']['title'] for s in result.get('sheets', [])]
 
 
-def read_sheet(sheets, sid, tab):
+def read_sheet(sheets, sid, tab, columns=None):
     quoted = "'" + tab.replace("'", "''") + "'"
     rows = sheets.spreadsheets().values().get(spreadsheetId=sid, range=quoted, valueRenderOption='FORMATTED_VALUE').execute().get('values', [])
-    header, cols = detect(rows[:50])
+    header, cols = detect(rows[:50], columns)
     return quoted, rows, header, cols
 
 
@@ -133,7 +133,7 @@ def manifest(folder):
     return items
 
 
-def upload_job(drive, sheets, sid, did, tab, job, all_folders, account):
+def upload_job(drive, sheets, sid, did, tab, job, all_folders, account, columns=None):
     from googleapiclient.http import MediaFileUpload
     folder = job['folder']
     before = manifest(folder)
@@ -175,7 +175,7 @@ def upload_job(drive, sheets, sid, did, tab, job, all_folders, account):
         print('  Selesai:', relative, flush=True)
     if manifest(folder) != before:
         raise ValueError('Isi folder sumber berubah. Link belum ditulis: ' + url)
-    quoted, rows, header, cols = read_sheet(sheets, sid, tab)
+    quoted, rows, header, cols = read_sheet(sheets, sid, tab, columns)
     fresh = next(p for p in make_plan(rows, header, cols, all_folders) if p['folder'] == folder)
     if fresh['error'] or fresh['row'] != job['row']:
         raise ValueError('Sheets berubah. Folder tersimpan, link belum ditulis: ' + url)

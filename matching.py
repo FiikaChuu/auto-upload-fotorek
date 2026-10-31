@@ -5,20 +5,55 @@ def number(value):
     return int(match[1]) if match else None
 
 
-def detect(rows):
-    aliases = {'no': {'no', 'nomor', 'number'}, 'pic': {'pic', 'penanggungjawab'},
-               'link': {'linkdrive', 'linkgoogledrive', 'tautandrive'}}
+ALIASES = {'no': {'no', 'nomor', 'number'}, 'pic': {'pic', 'penanggungjawab'},
+           'link': {'linkdrive', 'linkgoogledrive', 'tautandrive'}}
+
+
+def normalized(value):
+    return re.sub(r'[^a-z0-9]', '', str(value).lower())
+
+
+def parse_columns(values):
+    result = {}
+    for name in ALIASES:
+        value = str(values.get(name, '')).strip().upper()
+        if not re.fullmatch('[A-Z]{1,3}', value):
+            raise ValueError('Kolom harus huruf seperti A, D, atau G.')
+        index = 0
+        for char in value:
+            index = index * 26 + ord(char) - 64
+        result[name] = index - 1
+    if len(set(result.values())) != 3:
+        raise ValueError('Kolom No., PIC, dan Link Drive harus berbeda.')
+    return result
+
+
+def detect(rows, columns=None):
+    if columns is not None:
+        if set(columns) != set(ALIASES) or any(type(i) is not int or i < 0 for i in columns.values()) or len(set(columns.values())) != 3:
+            raise ValueError('Pengaturan kolom tidak valid.')
+        for index, row in enumerate(rows):
+            if all(col < len(row) and normalized(row[col]) in ALIASES[name] for name, col in columns.items()):
+                return index, dict(columns)
+        expected = ', '.join(f'{name}={column(col)}' for name,col in columns.items())
+        raise ValueError(f'Judul kolom tidak cocok dengan pengaturan ({expected}). Periksa huruf kolom di aplikasi atau pilih Deteksi otomatis. Sheets tidak diubah.')
+    ambiguous = []
     for index, row in enumerate(rows):
-        found = {}
+        found = {name: [] for name in ALIASES}
         for col, value in enumerate(row):
-            normalized = re.sub(r'[^a-z0-9]', '', str(value).lower())
-            for name, options in aliases.items():
-                if normalized in options:
-                    if name in found:
-                        raise ValueError('Header kolom ganda; rapikan header terlebih dahulu.')
-                    found[name] = col
-        if len(found) == 3:
-            return index, found
+            for name, options in ALIASES.items():
+                if normalized(value) in options:
+                    found[name].append(col)
+        # Decorative/partial rows can repeat words without being a header.
+        if all(found.values()):
+            if all(len(cols) == 1 for cols in found.values()):
+                return index, {name: cols[0] for name,cols in found.items()}
+            ambiguous.append((index,found))
+            break
+    if ambiguous:
+        index,found = ambiguous[0]
+        duplicates = '; '.join(f'{name}: '+', '.join(column(c) for c in cols) for name,cols in found.items() if len(cols) > 1)
+        raise ValueError(f'Baris judul {index+1} memiliki beberapa kandidat kolom ({duplicates}). Matikan Deteksi otomatis dan isi kolom tujuan di aplikasi, misalnya No.=A, PIC=D, Link Drive=G. Tidak perlu mengubah Sheets.')
     raise ValueError('Header No., PIC, dan Link Drive tidak ditemukan dalam 50 baris pertama.')
 
 
