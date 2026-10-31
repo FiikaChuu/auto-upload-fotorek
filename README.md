@@ -4,6 +4,10 @@ Aplikasi browser berbahasa Indonesia untuk mengunggah banyak folder ke Google Dr
 
 ## Jalankan
 
+### Windows: tinggal klik
+
+Ekstrak atau clone seluruh proyek ke `D:\Upload_auto`. Instal Node.js LTS sekali saja, lalu klik dua kali **Jalankan Fotorek.bat**. Browser terbuka otomatis setelah server siap; tidak perlu mengetik perintah atau alamat localhost. Biarkan jendela peluncur terbuka selama dipakai, lalu tutup untuk menghentikan server. Peluncur ini tetap menggunakan server localhost di belakang layar, bukan aplikasi desktop EXE mandiri. Pengaturan OAuth Google di bawah tetap diperlukan sekali saja. Skrip Windows belum diuji langsung di mesin Windows.
+
 Gunakan Node.js 20 atau lebih baru. Tidak ada dependency npm yang perlu diinstal.
 
 ```sh
