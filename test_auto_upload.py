@@ -65,6 +65,34 @@ class Tests(unittest.TestCase):
             root=Path(temp);(root/'sub').mkdir();(root/'sub'/'photo').write_bytes(b'123')
             self.assertEqual([(p,s) for p,s,_ in app.manifest(root)],[(str(Path('sub/photo')),3)])
 
+    def test_select_individual_and_multiple_parent_folders(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)/'Edited';root.mkdir()
+            for name in ['11','13','15','other']:(root/name).mkdir()
+            with patch.object(app,'pick_directory',return_value=str(root/'11')),patch.object(app,'ask',return_value='t'):
+                self.assertEqual(app.select_local_folders(),[root/'11'])
+            with patch.object(app,'pick_directory',return_value=str(root)),patch.object(app,'ask',return_value='t'):
+                self.assertEqual({p.name for p in app.select_local_folders()},{'11','13','15'})
+
+    def test_local_folder_11_uploads_then_writes_g12(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);folder=root/'11';folder.mkdir();(folder/'edited.jpg').write_bytes(b'edited')
+            drive,sheets=Mock(),Mock()
+            drive.files.return_value.get.return_value.execute.return_value={'mimeType':'application/vnd.google-apps.folder','capabilities':{'canAddChildren':True}}
+            drive.about.return_value.get.return_value.execute.return_value={'user':{'permissionId':'account'}}
+            drive.files.return_value.create.return_value.execute.return_value={'id':'uploaded-11'}
+            order=[]
+            drive.files.return_value.create.return_value.next_chunk.side_effect=lambda **kw:(order.append('upload') or (None,{'id':'photo'}))
+            sheets.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect=lambda:order.append('write')
+            rows=[['No.','Reference','Location','PIC','','','Link Drive']]+[[] for _ in range(10)]+[['11','','','afzal']]
+            cols={'no':0,'pic':3,'link':6}
+            with patch.object(app,'STATE',root/'state'),patch.object(app,'select_local_folders',return_value=[folder]),patch.object(app,'tabs',return_value=['FEEDS-OKT']),patch.object(app,'ask',side_effect=['sheet-id','1','drive-id','UPLOAD']),patch.object(app,'read_sheet',return_value=("'FEEDS-OKT'",rows,0,cols)):
+                app.configure_and_upload((drive,sheets))
+            self.assertEqual(order,['upload','write'])
+            write=sheets.spreadsheets.return_value.values.return_value.update.call_args.kwargs
+            self.assertEqual(write['range'],"'FEEDS-OKT'!G12")
+            self.assertEqual(write['body']['values'],[['https://drive.google.com/drive/folders/uploaded-11']])
+
     def test_drive_folder_pagination(self):
         drive=Mock()
         drive.files.return_value.list.return_value.execute.side_effect=[
@@ -78,15 +106,15 @@ class Tests(unittest.TestCase):
             app.main()
             wizard.assert_called_once_with(None)
 
-    def test_wizard_first_login_then_drive_sync(self):
+    def test_wizard_first_login_then_local_upload(self):
         with tempfile.TemporaryDirectory() as temp:
             drive,sheets=Mock(),Mock()
             drive.about.return_value.get.return_value.execute.return_value={'user':{'emailAddress':'user@example.test'}}
             order=[]
-            with patch.object(app,'STATE',Path(temp)),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login',side_effect=lambda *_:order.append('login')),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'ask',return_value='1'),patch.object(app,'sync_drive',side_effect=lambda *_:order.append('sync')) as sync:
+            with patch.object(app,'STATE',Path(temp)),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login',side_effect=lambda *_:order.append('login')),patch.object(app,'services',return_value=(drive,sheets)),patch.object(app,'ask',return_value='1'),patch.object(app,'configure_and_upload',side_effect=lambda *_:order.append('upload')) as upload:
                 app.wizard()
-                self.assertEqual(order,['login','sync'])
-                sync.assert_called_once_with((drive,sheets))
+                self.assertEqual(order,['login','upload'])
+                upload.assert_called_once_with((drive,sheets))
 
     def test_wizard_reuses_login_then_local_upload(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -103,7 +131,7 @@ class Tests(unittest.TestCase):
             root=Path(temp);(root/'token.json').write_text('{}')
             drive,sheets=Mock(),Mock()
             drive.about.return_value.get.return_value.execute.return_value={'user':{}}
-            with patch.object(app,'STATE',root),patch.object(app,'services',side_effect=[ValueError('expired'),(drive,sheets)]),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login') as login,patch.object(app,'ask',return_value='1'),patch.object(app,'sync_drive'):
+            with patch.object(app,'STATE',root),patch.object(app,'services',side_effect=[ValueError('expired'),(drive,sheets)]),patch.object(app,'client_file',return_value=Path('oauth.json')),patch.object(app,'login') as login,patch.object(app,'ask',return_value='1'),patch.object(app,'configure_and_upload'):
                 app.wizard()
                 login.assert_called_once_with('oauth.json')
 

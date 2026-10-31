@@ -188,9 +188,53 @@ def step(index, title):
     print(f'\n=== LANGKAH {index}/6: {title} ===', flush=True)
 
 
+def pick_directory(default=''):
+    if os.name == 'nt':
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            try:
+                return filedialog.askdirectory(title='Pilih folder hasil edit (11) atau induk berisi banyak folder nomor', initialdir=default or None, parent=root)
+            finally:
+                root.destroy()
+        except Exception:
+            print('Pemilih folder tidak tersedia. Tempel lokasi folder di bawah.')
+    return ask('Lokasi folder hasil edit atau folder induknya', default)
+
+
+def select_local_folders(default=''):
+    step(2, 'Pilih folder hasil edit di komputer')
+    print('Pilih folder bernomor (contoh 11), atau folder induk berisi 11, 13, 15, dst.')
+    selected = {}
+    while True:
+        location = pick_directory(default)
+        if not location:
+            if selected:
+                break
+            raise ValueError('Pemilihan folder dibatalkan. Tidak ada upload.')
+        root = Path(location).resolve()
+        if not root.is_dir():
+            raise ValueError('Folder sumber tidak ditemukan.')
+        candidates = [root] if number(root.name) is not None else [p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and number(p.name) is not None]
+        if not candidates:
+            raise ValueError('Pilih folder bernomor atau induk yang berisi folder bernomor.')
+        for folder in candidates:
+            selected[str(folder.resolve())] = folder
+        print('Folder terpilih:', ', '.join(p.name for p in selected.values()))
+        default = str(root.parent)
+        if ask('Tambah folder lain? (y/t)', 't').casefold() != 'y':
+            break
+    return list(selected.values())
+
+
 def configure_and_upload(clients=None):
     drive, sheets = clients or services()
     cfg = load(STATE / 'settings.json', {})
+    folders = select_local_folders(cfg.get('folder', ''))
+    cfg['folder'] = str(folders[0].parent)
     step(3, 'Google Sheets dan tab bulanan')
     cfg['sheet'] = ask('Link Google Sheets', cfg.get('sheet', ''))
     sid = extract(cfg['sheet'], 'sheet')
@@ -202,16 +246,9 @@ def configure_and_upload(clients=None):
         raise ValueError('Pilihan tab tidak valid.')
     tab = names[choice-1]
     print('Tab terpilih:', tab)
-    step(4, 'Tujuan Drive dan folder sumber di komputer')
+    step(4, 'Folder tujuan di Google Drive')
     cfg['drive'] = ask('Link folder Drive tujuan', cfg.get('drive', ''))
     did = extract(cfg['drive'], 'drive')
-    cfg['folder'] = ask('Folder INDUK lokal (berisi folder 11, 12, dst.)', cfg.get('folder', ''))
-    root = Path(cfg['folder'])
-    if not cfg['folder'] or not root.is_dir():
-        raise ValueError('Folder induk tidak ditemukan.')
-    folders = [p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and number(p.name) is not None]
-    if not folders:
-        raise ValueError('Tidak ada folder bernomor di folder induk ini.')
     target = drive.files().get(fileId=did, fields='mimeType,capabilities(canAddChildren)', supportsAllDrives=True).execute()
     if target['mimeType'] != 'application/vnd.google-apps.folder' or not target.get('capabilities', {}).get('canAddChildren'):
         raise ValueError('Akun ini tidak dapat menambah isi folder Drive tujuan.')
@@ -220,7 +257,8 @@ def configure_and_upload(clients=None):
     step(5, 'Pratinjau pencocokan otomatis')
     print(f'\nTab: {quoted} | PIC: afzal | Kolom otomatis: ' + ', '.join(f'{k}={column(v)}' for k,v in cols.items()))
     for job in jobs:
-        print(f'{job["folder"].name} -> baris {job["row"] or "-"}: {job["error"] or "SIAP"}')
+        destination = f'{quoted}!{column(cols["link"])}{job["row"]}' if job['row'] else '-'
+        print(f'{job["folder"]} -> No. {job["no"]} -> {destination}: {job["error"] or "SIAP"}')
     save(STATE / 'settings.json', cfg)
     if not any(not j['error'] for j in jobs):
         print('Tidak ada folder yang siap. Tidak ada upload atau perubahan Sheets.')
@@ -309,7 +347,7 @@ def sync_drive(clients=None):
 
 
 def wizard(oauth=None):
-    print('AUTO UPLOAD — PIC afzal\nLogin -> pilih proses -> Sheets/tab -> folder -> pratinjau -> jalankan')
+    print('AUTO UPLOAD — PIC afzal\nLogin -> pilih folder hasil edit -> Sheets/tab -> tujuan Drive -> pratinjau -> upload dan isi link')
     step(1, 'Sambungkan Google')
     clients = None
     if (STATE / 'token.json').exists():
@@ -331,17 +369,7 @@ def wizard(oauth=None):
     drive, _ = clients
     user = drive.about().get(fields='user(displayName,emailAddress)').execute().get('user', {})
     print('Terhubung sebagai:', user.get('emailAddress') or user.get('displayName') or 'akun Google')
-    step(2, 'Pilih proses')
-    print('1. Folder SUDAH ADA di Drive -> isi link ke Sheets\n2. Folder masih di KOMPUTER -> upload ke Drive + isi Sheets')
-    while True:
-        choice = ask('Pilih 1 atau 2', '1')
-        if choice in ('1', '2'):
-            break
-        print('Masukkan 1 atau 2.')
-    if choice == '1':
-        sync_drive(clients)
-    else:
-        configure_and_upload(clients)
+    configure_and_upload(clients)
 
 
 def main():
