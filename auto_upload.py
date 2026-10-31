@@ -48,8 +48,8 @@ def client_file(explicit=None):
     if len(valid) == 1:
         return valid[0]
     if len(valid) > 1:
-        raise ValueError('Ada beberapa OAuth JSON. Pilih satu dengan: Auto Upload.bat login --oauth "lokasi.json"')
-    raise ValueError('OAuth Desktop JSON belum ditemukan. Salin file client_secret…json yang diunduh dari Google ke folder aplikasi, atau gunakan login --oauth "lokasi.json". Jangan ganti jenis client menjadi Web.')
+        raise ValueError('Ada beberapa OAuth JSON. Pilih satu melalui tombol Pilih OAuth JSON di aplikasi.')
+    raise ValueError('OAuth Desktop JSON belum ditemukan. Salin file client_secret…json ke folder aplikasi, atau gunakan tombol Pilih OAuth JSON. File harus berjenis Desktop app.')
 
 
 def login(explicit=None):
@@ -57,7 +57,7 @@ def login(explicit=None):
     path = client_file(explicit)
     print('OAuth Desktop JSON ditemukan. Browser login Google akan dibuka.')
     flow = InstalledAppFlow.from_client_secrets_file(str(path), SCOPES)
-    creds = flow.run_local_server(port=0, timeout_seconds=180, access_type='offline', prompt='consent', success_message='Login Auto Upload berhasil. Kembali ke terminal.')
+    creds = flow.run_local_server(port=0, timeout_seconds=180, access_type='offline', prompt='consent', success_message='Login Auto Upload berhasil. Silakan kembali ke aplikasi Auto Upload.')
     if not creds.has_scopes(SCOPES):
         raise ValueError('Izin Drive dan Sheets belum lengkap. Jalankan login lagi dan izinkan keduanya.')
     save(STATE / 'token.json', json.loads(creds.to_json()))
